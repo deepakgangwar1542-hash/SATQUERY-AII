@@ -65,17 +65,23 @@ def caption_image(image: str, band_mapping: dict | None = None) -> dict:
     if vlm is not None:
         # VLM path (only when a local checkpoint has been fetched).
         try:
-            import io
-            import rasterio.plot
             import PIL.Image
+            import torch  # type: ignore
             arr = graster.read_raster(image)["array"]
-            rgb = arr[[2, 1, 0]] if arr.shape[0] >= 3 else arr[:1]
+            if arr.shape[0] >= 3:
+                rgb = arr[[2, 1, 0]] if arr.shape[0] >= 3 else arr[:3]
+            else:
+                rgb = np.repeat(arr[:1], 3, axis=0)
+            refl = graster.to_reflectance(rgb)
             img = PIL.Image.fromarray(
-                (np.clip(graster.to_reflectance(rgb), 0, 1) * 255).astype("uint8").transpose(1, 2, 0))
+                (np.clip(refl, 0, 1) * 255).astype("uint8").transpose(1, 2, 0))
+            device = vlm.get("device", "cpu")
             inputs = vlm["processor"](images=img, return_tensors="pt")
-            out = vlm["model"].generate(**inputs, max_new_tokens=80)
-            text = vlm["processor"].batch_decode(out, skip_special_tokens=True)[0]
-            return {"caption": text.strip(), "mode": "vlm", "profile": profile}
+            inputs = {k: v.to(device) if hasattr(v, "to") else v for k, v in inputs.items()}
+            with torch.no_grad():
+                out = vlm["model"].generate(**inputs, max_new_tokens=80)
+            text = vlm["processor"].batch_decode(out, skip_special_tokens=True)[0].strip()
+            return {"caption": text, "mode": "vlm", "profile": profile}
         except Exception:
             pass  # fall through to deterministic captioner
     s = profile.get("shares", {})
@@ -162,20 +168,49 @@ def answer_question(image: str, question: str,
 
 def _vlm_answer(vlm: dict, image: str, question: str) -> dict | None:
     """Transformers VLM inference; returns None when the checkpoint is unusable."""
-    import torch  # type: ignore
     import PIL.Image
+    import torch  # type: ignore
     arr = graster.read_raster(image)["array"]
-    rgb = arr[[2, 1, 0]] if arr.shape[0] >= 3 else arr[:1]
+    if arr.shape[0] >= 3:
+        rgb = arr[[2, 1, 0]] if arr.shape[0] >= 3 else arr[:3]
+    else:
+        rgb = np.repeat(arr[:1], 3, axis=0)
+    refl = graster.to_reflectance(rgb)
     img = PIL.Image.fromarray(
-        (np.clip(graster.to_reflectance(rgb), 0, 1) * 255).astype("uint8").transpose(1, 2, 0))
+        (np.clip(refl, 0, 1) * 255).astype("uint8").transpose(1, 2, 0))
+
+    device = vlm.get("device", "cpu")
+    processor = vlm["processor"]
+    model = vlm["model"]
     prompt = f"Question: {question} Answer:"
-    inputs = vlm["processor"](images=img, text=prompt, return_tensors="pt")
+
+    try:
+        inputs = processor(images=img, text=prompt, return_tensors="pt")
+    except Exception:
+        try:
+            inputs = processor(images=img, return_tensors="pt")
+        except Exception:
+            return None
+
+    inputs = {k: v.to(device) if hasattr(v, "to") else v for k, v in inputs.items()}
     with torch.no_grad():
-        out = vlm["model"].generate(**inputs, max_new_tokens=120)
-    text = vlm["processor"].batch_decode(out, skip_special_tokens=True)[0].strip()
+        out = model.generate(**inputs, max_new_tokens=100)
+    text = processor.batch_decode(out, skip_special_tokens=True)[0].strip()
     if not text:
         return None
-    return {"answer": text, "confidence": 0.75, "evidence": [{
-        "agent": "perception", "type": "vlm_answer", "summary": text,
-        "data": {"mode": "vlm"}, "confidence": 0.75}],
-        "spatial_reference": None, "uncertainty": []}
+    if "Answer:" in text:
+        text = text.split("Answer:")[-1].strip()
+
+    return {
+        "answer": text,
+        "confidence": 0.85,
+        "evidence": [{
+            "agent": "perception",
+            "type": "vlm_answer",
+            "summary": text,
+            "data": {"mode": "vlm", "device": device},
+            "confidence": 0.85,
+        }],
+        "spatial_reference": None,
+        "uncertainty": [],
+    }

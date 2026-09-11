@@ -35,6 +35,10 @@ def gpu_available() -> bool:
         return False
 
 
+def get_device() -> str:
+    return "cuda" if gpu_available() else "cpu"
+
+
 @lru_cache(maxsize=1)
 def registry() -> dict:
     with open(_REGISTRY_PATH, encoding="utf-8") as fh:
@@ -45,16 +49,39 @@ def registry() -> dict:
 def load_vlm():
     """Single-image VQA/captioning model, or None. Looks for a local
     transformers vision-language checkpoint under checkpoints/vlm/."""
-    entry = registry()["models"]["perception_vlm"]
-    d = _weights_dir({"weights": "vlm/"})
+    entry = registry().get("models", {}).get("perception_vlm", {})
+    weights_path = entry.get("weights", "vlm/")
+    d = _weights_dir({"weights": weights_path})
     if not d.exists() or not any(d.iterdir()):
         return None, f"no local weights at {d}"
     try:
-        from transformers import AutoProcessor, AutoModelForVision2Seq  # type: ignore
-        processor = AutoProcessor.from_pretrained(d)
-        model = AutoModelForVision2Seq.from_pretrained(d)
+        from transformers import AutoProcessor  # type: ignore
+        device = get_device()
+        processor = AutoProcessor.from_pretrained(str(d))
+        model = None
+        # Try Vision2Seq or BLIP model architecture
+        try:
+            from transformers import AutoModelForVision2Seq  # type: ignore
+            model = AutoModelForVision2Seq.from_pretrained(str(d))
+        except Exception:
+            try:
+                from transformers import BlipForQuestionAnswering  # type: ignore
+                model = BlipForQuestionAnswering.from_pretrained(str(d))
+            except Exception:
+                from transformers import AutoModelForImageTextToText  # type: ignore
+                model = AutoModelForImageTextToText.from_pretrained(str(d))
+
+        if device == "cuda":
+            try:
+                import torch
+                model = model.to(device, dtype=torch.float16)
+            except Exception:
+                model = model.to(device)
+        else:
+            model = model.to(device)
+
         model.eval()
-        return {"processor": processor, "model": model, "dir": d}, None
+        return {"processor": processor, "model": model, "device": device, "dir": d}, None
     except Exception as exc:  # never crash the backend on model load (§7.2)
         return None, f"vlm_load_failed:{exc}"
 
@@ -62,30 +89,44 @@ def load_vlm():
 @lru_cache(maxsize=None)
 def load_detector():
     """Grounding DINO via transformers, or None."""
-    entry = registry()["models"]["grounding_dino"]
-    d = _weights_dir({"weights": "grounding_dino/"})
+    entry = registry().get("models", {}).get("grounding_dino", {})
+    weights_path = entry.get("weights", "grounding_dino/")
+    d = _weights_dir({"weights": weights_path})
     if not d.exists() or not any(d.iterdir()):
         return None, f"no local weights at {d}"
     try:
         from transformers import AutoProcessor, AutoModelForZeroShotObjectDetection  # type: ignore
-        processor = AutoProcessor.from_pretrained(d)
-        model = AutoModelForZeroShotObjectDetection.from_pretrained(d)
+        device = get_device()
+        processor = AutoProcessor.from_pretrained(str(d))
+        model = AutoModelForZeroShotObjectDetection.from_pretrained(str(d))
+        model = model.to(device)
         model.eval()
-        return {"processor": processor, "model": model}, None
+        return {"processor": processor, "model": model, "device": device}, None
     except Exception as exc:
         return None, f"detector_load_failed:{exc}"
 
 
 @lru_cache(maxsize=None)
 def load_change_model():
-    """In-house Siamese U-Net checkpoint, or None (falls back to index-delta)."""
-    d = _weights_dir({"weights": "change_detector/siamese_unet_levircd.pt"})
+    """In-house Siamese Change Detection checkpoint, or None (falls back to index-delta)."""
+    entry = registry().get("models", {}).get("change_detector", {})
+    weights_path = entry.get("weights", "change_detector/siamese_unet_levircd.pt")
+    d = _weights_dir({"weights": weights_path})
     if not d.exists():
         return None, f"no checkpoint at {d}"
     try:
         import torch  # type: ignore
-        state = torch.load(d, map_location="cpu")
-        return {"state_dict": state}, None
+        from ..geospatial.siamese_change import SiameseChangeNet
+        device = get_device()
+        model = SiameseChangeNet(in_channels=4, base_channels=32)
+        state = torch.load(d, map_location=device, weights_only=True)
+        if isinstance(state, dict) and "state_dict" in state:
+            model.load_state_dict(state["state_dict"])
+        elif isinstance(state, dict):
+            model.load_state_dict(state)
+        model = model.to(device)
+        model.eval()
+        return {"model": model, "device": device, "path": str(d)}, None
     except Exception as exc:
         return None, f"change_model_load_failed:{exc}"
 
@@ -93,11 +134,15 @@ def load_change_model():
 @lru_cache(maxsize=None)
 def load_embedding_model():
     """sentence-transformers embedding model, or None (TF-IDF fallback)."""
-    d = _weights_dir({"weights": "embeddings/"})
+    entry = registry().get("models", {}).get("embedding_model", {})
+    weights_path = entry.get("weights", "embeddings/")
+    d = _weights_dir({"weights": weights_path})
     try:
         from sentence_transformers import SentenceTransformer  # type: ignore
-        source = str(d) if d.exists() and any(d.iterdir()) else "sentence-transformers/all-MiniLM-L6-v2"
-        return SentenceTransformer(source), None
+        device = get_device()
+        source = str(d) if d.exists() and any(d.iterdir()) else entry.get("hf_id", "sentence-transformers/all-MiniLM-L6-v2")
+        model = SentenceTransformer(source, device=device)
+        return model, None
     except Exception as exc:
         return None, f"embedding_model_unavailable:{exc}"
 

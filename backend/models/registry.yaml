@@ -11,11 +11,10 @@ models:
   perception_vlm:
     role: single-image VQA + captioning (FR-2, FR-3)
     engine: transformers
-    # Apache-2.0 geospatial foundation model (verify the HF model card, §14.2)
-    hf_id: nasa-cisto-data-science-group/satlasprithvi-swin-b   # Prithvi-EO family
-    weights: prithvi/                                          # subdir under base_dir
-    license: apache-2.0
-    license_verified: false
+    hf_id: Salesforce/blip-vqa-base
+    weights: vlm/
+    license: bsd-3-clause
+    license_verified: true
     fallback: heuristic_scene_analyzer
 
   grounding_dino:

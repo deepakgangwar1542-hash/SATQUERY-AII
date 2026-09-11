@@ -123,42 +123,68 @@ def ground_objects(image: str, expression: str,
 def _dino_objects(det: dict, image: str, expression: str,
                   band_mapping: dict | None = None) -> dict:
     """Grounding DINO path (requires a locally fetched checkpoint)."""
-    import torch  # type: ignore
     import numpy as np
-    arr = graster.read_raster(image)["array"]
-    rgb = arr[[2, 1, 0]] if arr.shape[0] >= 3 else arr[:1]
+    import torch  # type: ignore
     from PIL import Image
+
+    arr = graster.read_raster(image)["array"]
+    if arr.shape[0] >= 3:
+        rgb = arr[[2, 1, 0]] if arr.shape[0] >= 3 else arr[:3]
+    else:
+        rgb = np.repeat(arr[:1], 3, axis=0)
+
+    refl = graster.to_reflectance(rgb)
     img = Image.fromarray(
-        (np.clip(graster.to_reflectance(rgb), 0, 1) * 255).astype("uint8").transpose(1, 2, 0))
-    inputs = det["processor"](images=img, text=expression, return_tensors="pt")
+        (np.clip(refl, 0, 1) * 255).astype("uint8").transpose(1, 2, 0))
+
+    prompt = expression.strip().rstrip(".").lower()
+    if not prompt:
+        prompt = "object"
+    text_query = f"{prompt} ."
+
+    device = det.get("device", "cpu")
+    processor = det["processor"]
+    model = det["model"]
+
+    inputs = processor(images=img, text=text_query, return_tensors="pt")
+    inputs = {k: v.to(device) if hasattr(v, "to") else v for k, v in inputs.items()}
+
     with torch.no_grad():
-        outputs = det["model"](**inputs)
-    results = det["processor"].post_process_grounded_object_detection(
-        outputs, inputs.input_ids, threshold=0.25, text_threshold=0.25)[0]
+        outputs = model(**inputs)
+
+    target_sizes = [(img.height, img.width)]
+    results = processor.post_process_grounded_object_detection(
+        outputs, inputs["input_ids"], threshold=0.25, text_threshold=0.25,
+        target_sizes=target_sizes)[0]
+
     objects = []
     for score, box, label in zip(results["scores"], results["boxes"], results["text_labels"]):
+        b = [round(float(v), 2) for v in box.tolist()]
         objects.append({
             "id": f"obj_{uuid.uuid4().hex[:6]}",
-            "class_label": str(label),
-            "bbox_pixel": [float(v) for v in box.tolist()],
+            "class_label": str(label).strip(),
+            "bbox_pixel": b,
             "geometry_wgs84": None,  # bbox→polygon conversion below
             "mask_encoding": "polygon",
-            "confidence": float(score),
+            "confidence": round(float(score), 4),
         })
-    # convert pixel boxes → WGS84 polygons via the affine transform
-    data = graster.read_raster(image)
-    import geopandas as gpd
-    from shapely.geometry import mapping as geom_mapping
-    geoms = []
-    for o in objects:
-        x0, y0, x1, y1 = o["bbox_pixel"]
-        corners = [data["transform"] * (x0, y0), data["transform"] * (x1, y0),
-                   data["transform"] * (x1, y1), data["transform"] * (x0, y1)]
-        geoms.append(shp_box(min(c[0] for c in corners), min(c[1] for c in corners),
-                             max(c[0] for c in corners), max(c[1] for c in corners)))
-    gdf = gpd.GeoDataFrame(objects, geometry=geoms, crs=data["crs"]).to_crs(4326)
-    for o, geom in zip(objects, gdf.geometry):
-        o["geometry_wgs84"] = geom_mapping(geom)
+
+    if objects:
+        # convert pixel boxes → WGS84 polygons via the affine transform
+        data = graster.read_raster(image)
+        import geopandas as gpd
+        from shapely.geometry import mapping as geom_mapping
+        geoms = []
+        for o in objects:
+            x0, y0, x1, y1 = o["bbox_pixel"]
+            t = data["transform"]
+            corners = [t * (x0, y0), t * (x1, y0), t * (x1, y1), t * (x0, y1)]
+            geoms.append(shp_box(min(c[0] for c in corners), min(c[1] for c in corners),
+                                 max(c[0] for c in corners), max(c[1] for c in corners)))
+        gdf = gpd.GeoDataFrame(objects, geometry=geoms, crs=data["crs"]).to_crs(4326)
+        for o, geom in zip(objects, gdf.geometry):
+            o["geometry_wgs84"] = geom_mapping(geom)
+
     return {"objects": objects, "note": None if objects else "no matching objects found",
-            "mode": "grounding_dino", "confidence": 0.7 if objects else 0.4,
+            "mode": "grounding_dino", "confidence": 0.8 if objects else 0.4,
             "uncertainty": []}

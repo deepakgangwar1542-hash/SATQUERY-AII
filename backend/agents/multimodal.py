@@ -113,10 +113,24 @@ def predict_multimodal(optical_image: str | None, sar_image: str | None) -> dict
     agreement = 1.0 - sum(abs(optical["shares"].get(k, 0.0) - sar["shares"].get(k, 0.0))
                           for k in fused) / 2.0
     fusion_confidence = round(min(0.95, total / 2.0 * (0.6 + 0.4 * agreement)), 3)
+
+    pred_payload: dict = {
+        "class_shares": fused,
+        "ndvi_mean": optical["ndvi_mean"],
+        "vv_mean_db": sar["vv_mean_db"],
+    }
+    meta_extra: dict = {}
+
+    try:
+        from bigearthnet_module.src import inference as ben_inference
+        ben_res = ben_inference.predict_multimodal(optical_image, sar_image)
+        pred_payload["ml_classification"] = ben_res.get("prediction")
+        meta_extra["ml_model"] = ben_res.get("metadata", {}).get("model")
+    except Exception:
+        pass
+
     return {
-        "prediction": {"class_shares": fused,
-                       "ndvi_mean": optical["ndvi_mean"],
-                       "vv_mean_db": sar["vv_mean_db"]},
+        "prediction": pred_payload,
         "confidence": fusion_confidence,
         "evidence": {"optical": optical, "sar": sar},
         "metadata": {
@@ -125,5 +139,6 @@ def predict_multimodal(optical_image: str | None, sar_image: str | None) -> dict
             "sensor_reliability": {"optical": wo, "sar": ws},
             "cloud_fraction_optical": optical["cloud_fraction"],
             "sar_reliability_note": "baseline with speckle-quality TODO (§10.5)",
+            **meta_extra,
         },
     }

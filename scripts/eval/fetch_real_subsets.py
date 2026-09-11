@@ -33,7 +33,13 @@ SOURCES = [
 
 
 def fetch_one(name: str, repo_id: str, split: str, license_note: str, n: int) -> dict:
-    from datasets import load_dataset
+    import sys
+    sys_orig = list(sys.path)
+    try:
+        sys.path = [x for x in sys.path if x not in ("", str(REPO_ROOT), str(REPO_ROOT / "datasets"))]
+        from datasets import load_dataset
+    finally:
+        sys.path = sys_orig
 
     out_dir = DATASETS_DIR / name / "real_subset"
     out_dir.mkdir(parents=True, exist_ok=True)

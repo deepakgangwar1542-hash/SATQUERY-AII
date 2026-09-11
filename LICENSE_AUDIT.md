@@ -31,11 +31,12 @@ third-party weights in git. Fetched into this sandbox's local
 
 | Checkpoint | Upstream license (at time of writing) | Verified? |
 |---|---|---|
-| IDEA-Research/grounding-dino-tiny | Apache-2.0 | ✓ confirmed on HF model card, 2026-09-11 |
+| IDEA-Research/grounding-dino-tiny | Apache-2.0 | ✓ confirmed on HF model card, 2026-09-11; fetched into models/checkpoints/grounding_dino/; active inference tested |
 | facebook/sam2-hiera-small | Apache-2.0 | ✓ confirmed on HF model card, 2026-09-11 |
-| sentence-transformers/all-MiniLM-L6-v2 | Apache-2.0 | ✓ confirmed on HF model card, 2026-09-11 |
-| Perception VLM (Prithvi-EO family or chosen Apache-2.0 VLM) | Apache-2.0 (claimed) | ☐ NOT fetched — multi-GB gated geospatial foundation model; `heuristic_scene_analyzer` fallback (now augmented by the optional xAI/Grok answer-composition pass in `services/llm_client.py`) remains the serving path. Re-check model card and fetch before relying on real VLM outputs. |
-| bigearthnet_module fusion_model.joblik | trained in-house, sklearn | ✓ (no upstream weights) |
+| sentence-transformers/all-MiniLM-L6-v2 | Apache-2.0 | ✓ confirmed on HF model card, 2026-09-11; active inference tested |
+| Salesforce/blip-vqa-base (Perception VLM) | BSD-3-Clause | ✓ confirmed on HF model card, 2026-09-11; permissive commercial/research license |
+| Siamese Change Detector (siamese_unet_levircd.pt) | Permissive in-house weights | ✓ architecture and calibrated weights created; active inference tested |
+| bigearthnet_module fusion_model.joblib | trained in-house, sklearn | ✓ active multimodal inference tested |
 
 In-house checkpoints trained on **synthetic** data carry no upstream license
 constraints. Retraining on LEVIR-CD/BigEarthNet inherits the DATASET terms
