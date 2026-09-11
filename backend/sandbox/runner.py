@@ -98,6 +98,13 @@ def run_sandboxed(code: str, input_files: list[str], params: dict | None = None,
                 preexec_fn=preexec,
             )
             exit_code, stdout, stderr = proc.returncode, proc.stdout[-8000:], proc.stderr[-8000:]
+            # On POSIX, RLIMIT_CPU (set in _posix_limits) fires SIGXCPU before
+            # the wall-clock `timeout_s` elapses, so the process is killed
+            # (negative returncode) without ever raising TimeoutExpired below.
+            # Surface that as the same "timeout" reason so callers (and the
+            # confidence/verifier layer, PRD §11.3) see one consistent signal.
+            if exit_code is not None and exit_code < 0 and not stderr:
+                stderr = f"timeout_after_{timeout_s}s (cpu_limit_signal={-exit_code})"
         except subprocess.TimeoutExpired as exc:
             return {"ok": False, "exit_code": None,
                     "duration_ms": int((time.monotonic() - started) * 1000),

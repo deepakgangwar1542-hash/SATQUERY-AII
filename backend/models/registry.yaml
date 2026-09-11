@@ -24,7 +24,7 @@ models:
     hf_id: IDEA-Research/grounding-dino-tiny
     weights: grounding_dino/
     license: apache-2.0
-    license_verified: false
+    license_verified: true   # confirmed Apache-2.0 on HF model card, 2026-09-11
     fallback: index_threshold_segmenter
 
   sam2:
@@ -33,7 +33,7 @@ models:
     hf_id: facebook/sam2-hiera-small
     weights: sam2/
     license: apache-2.0
-    license_verified: false
+    license_verified: true   # confirmed Apache-2.0 on HF model card, 2026-09-11
     fallback: none   # grounding falls back to polygon masks directly
 
   change_detector:
@@ -52,5 +52,5 @@ models:
     hf_id: sentence-transformers/all-MiniLM-L6-v2   # Apache-2.0
     weights: embeddings/
     license: apache-2.0
-    license_verified: false
+    license_verified: true   # confirmed Apache-2.0 on HF model card, 2026-09-11
     fallback: tfidf_retrieval
