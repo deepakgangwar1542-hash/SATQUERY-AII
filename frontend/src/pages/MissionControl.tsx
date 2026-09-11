@@ -15,7 +15,7 @@
  * - ALL values from real backend responses.
  */
 import { useState, useCallback, useEffect } from "react";
-import type { AppState, UploadedAsset, QueryResult, AgentStatus, TraceEvent } from "../services/types";
+import type { AppState, UploadedAsset, QueryResult, AgentStatus, TraceEvent, Claim } from "../services/types";
 import * as api from "../services/api";
 
 import { DataDrawer } from "../components/DataDrawer";
@@ -24,12 +24,17 @@ import { QueryComposer } from "../components/QueryComposer";
 import { AnalysisOverlay } from "../components/AnalysisOverlay";
 import { AIAnswerPanel } from "../components/AIAnswerPanel";
 import { AgentPipelineBar } from "../components/AgentPipelineBar";
+import { EvidenceLens } from "../components/EvidenceLens";
 
 // ─────────────────────────────────────────────────────────────
-// Demo mission preset — triggers a REAL backend query
+// Demo Presets (Sections 36, 37, 38)
 // ─────────────────────────────────────────────────────────────
-const DEMO_QUERY =
-  "Identify flood-affected areas and generate a change detection map, then retrieve emergency response protocols.";
+const DEMO_1_FLOOD_BUILDINGS =
+  "Between June and August, identify areas where flooding increased and tell me how many buildings were affected.";
+const DEMO_2_HYPOTHESIS =
+  "What caused the major change in this region?";
+const DEMO_3_ANOMALY =
+  "Find anything unusual in this region.";
 
 // Health indicator colours
 const HEALTH_COLOR: Record<string, string> = {
@@ -39,11 +44,19 @@ const HEALTH_COLOR: Record<string, string> = {
 };
 
 export default function MissionControl() {
+  // ── Product Modes (Section 35: ASK, INVESTIGATE, EXPLORE) ──
+  const [productMode, setProductMode] = useState<"ask" | "investigate" | "explore">("investigate");
+
+  // ── Evidence Lens Modal State (Section 18) ────────────────
+  const [showEvidenceLens, setShowEvidenceLens] = useState(false);
+  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
+
   // ── UI State machine ──────────────────────────────────────
   const [appState, setAppState] = useState<AppState>("idle");
 
   // ── Query ─────────────────────────────────────────────────
   const [question, setQuestion] = useState("");
+
 
   // ── Assets / Data ─────────────────────────────────────────
   const [assets, setAssets] = useState<UploadedAsset[]>([]);
@@ -188,10 +201,10 @@ export default function MissionControl() {
     }
   }, [question, selectedAssets, aoi]);
 
-  // Demo mission — fires a real query
-  const handleDemo = useCallback(() => {
-    setQuestion(DEMO_QUERY);
-    handleAnalyze(DEMO_QUERY);
+  // Demo Presets handler
+  const handleLaunchPreset = useCallback((presetQuery: string) => {
+    setQuestion(presetQuery);
+    handleAnalyze(presetQuery);
   }, [handleAnalyze]);
 
   // Reset to idle
@@ -203,6 +216,8 @@ export default function MissionControl() {
     setCurrentJobId(null);
     setLiveAgents([]);
     setLiveProgress(0);
+    setShowEvidenceLens(false);
+    setSelectedClaim(null);
   }, []);
 
   // Edit query → back to idle with question preserved
@@ -214,17 +229,7 @@ export default function MissionControl() {
   // Highlight evidence: fly to first feature bounds
   const handleHighlightEvidence = useCallback(() => {
     if (result?.location?.features?.[0]?.geometry?.coordinates) {
-      const coords = result.location.features[0].geometry.coordinates as number[][][];
-      if (coords[0]) {
-        const lons = coords[0].map((c) => c[0]);
-        const lats = coords[0].map((c) => c[1]);
-        const bounds = [
-          Math.min(...lons), Math.min(...lats),
-          Math.max(...lons), Math.max(...lats),
-        ];
-        // GlobeWorkspace handles the actual fly-to when footprintBounds changes
-        // We'll just show a toast — the globe already has the features
-      }
+      // Evidence is highlighted on the globe
     }
   }, [result]);
 
@@ -235,7 +240,7 @@ export default function MissionControl() {
   // RENDER
   // ════════════════════════════════════════════════════════
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 overflow-hidden">
+    <div className="flex flex-col h-screen w-screen bg-slate-950 overflow-hidden font-sans">
 
       {/* ── HEADER ──────────────────────────────────────────── */}
       <header className="shrink-0 flex items-center justify-between px-5 border-b border-slate-800/60 bg-slate-950/90 backdrop-blur-xl z-30" style={{ height: "52px" }}>
@@ -250,55 +255,62 @@ export default function MissionControl() {
           </div>
         </div>
 
-        {/* Center: state indicator */}
-        <div className="flex items-center gap-2">
-          {appState === "idle" && (
-            <span className="text-xs text-slate-500 hidden md:inline">
-              Interactive Vision-Language Assistant
-            </span>
-          )}
-          {appState === "analyzing" && (
-            <div className="flex items-center gap-2">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500" />
-              </span>
-              <span className="text-xs text-amber-400 font-semibold font-mono">Autonomous Analysis</span>
-            </div>
-          )}
-          {appState === "result" && (
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              <span className="text-xs text-emerald-400 font-semibold">Analysis Complete</span>
-            </div>
-          )}
-          {appState === "error" && (
-            <span className="text-xs text-rose-400 font-semibold">Analysis Failed</span>
-          )}
+        {/* Center: 3 Primary Product Modes (Section 35) */}
+        <div className="flex items-center gap-1 rounded-xl border border-slate-800 bg-slate-900/80 p-1">
+          {(["ask", "investigate", "explore"] as const).map((m) => (
+            <button
+              key={m}
+              onClick={() => setProductMode(m)}
+              className={`px-3 py-1 rounded-lg text-xs font-bold uppercase transition-all cursor-pointer ${
+                productMode === m
+                  ? "bg-sky-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-slate-200"
+              }`}
+            >
+              {m}
+            </button>
+          ))}
         </div>
 
-        {/* Right actions */}
+        {/* Right actions & Demo Missions */}
         <div className="flex items-center gap-2">
           {/* System health */}
-          <span className={`text-[10px] font-mono hidden lg:inline ${HEALTH_COLOR[health] ?? "text-slate-400"}`}>
+          <span className={`text-[10px] font-mono hidden xl:inline ${HEALTH_COLOR[health] ?? "text-slate-400"}`}>
             ● {health}
           </span>
 
-          {/* Demo Mission */}
+          {/* Demo Presets Dropdown */}
           {(appState === "idle" || appState === "error") && (
-            <button
-              onClick={handleDemo}
-              className="rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 px-4 py-1.5 text-xs font-bold text-white shadow-lg shadow-sky-600/30 transition-all active:scale-95"
-            >
-              ▶ Demo Mission
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => handleLaunchPreset(DEMO_1_FLOOD_BUILDINGS)}
+                className="rounded-xl bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 px-3 py-1.5 text-xs font-bold text-white shadow-md shadow-sky-600/30 transition-all cursor-pointer"
+                title="Demo 1: Flood Increase & Building Impact"
+              >
+                ▶ Flood Demo
+              </button>
+              <button
+                onClick={() => handleLaunchPreset(DEMO_2_HYPOTHESIS)}
+                className="rounded-xl border border-indigo-700/60 bg-indigo-950/60 hover:bg-indigo-900 px-2.5 py-1.5 text-xs font-medium text-indigo-200 transition-all cursor-pointer hidden md:inline"
+                title="Demo 2: Cause Investigation"
+              >
+                Cause Demo
+              </button>
+              <button
+                onClick={() => handleLaunchPreset(DEMO_3_ANOMALY)}
+                className="rounded-xl border border-amber-700/60 bg-amber-950/60 hover:bg-amber-900 px-2.5 py-1.5 text-xs font-medium text-amber-200 transition-all cursor-pointer hidden lg:inline"
+                title="Demo 3: Anomaly Scan"
+              >
+                Anomaly Scan
+              </button>
+            </div>
           )}
 
           {/* New Query */}
           {(appState === "result" || appState === "error") && (
             <button
               onClick={handleReset}
-              className="rounded-xl border border-slate-700/70 bg-slate-800/60 hover:bg-slate-700/60 px-3 py-1.5 text-xs font-medium text-slate-300 transition-all"
+              className="rounded-xl border border-slate-700/70 bg-slate-800/60 hover:bg-slate-700/60 px-3 py-1.5 text-xs font-medium text-slate-300 transition-all cursor-pointer"
             >
               ↩ New Query
             </button>
@@ -326,6 +338,33 @@ export default function MissionControl() {
 
         {/* ── CENTER: Globe + State-Driven Overlay ─── */}
         <div className="relative flex flex-col flex-1 overflow-hidden">
+
+          {/* ── CLICK-TO-ASK EARTH CONTEXTUAL CHIPS (Section 23) ── */}
+          {aoi && appState === "idle" && (
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-slate-900/90 border border-sky-500/50 rounded-xl px-4 py-2 shadow-2xl backdrop-blur-md animate-fadeIn">
+              <span className="text-[10px] font-mono font-bold uppercase text-sky-400">
+                Region Selected:
+              </span>
+              <button
+                onClick={() => handleLaunchPreset("What changed in this selected region?")}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-sky-600 text-xs font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
+              >
+                What Changed Here?
+              </button>
+              <button
+                onClick={() => handleLaunchPreset("Detect flooding and count affected buildings in this region.")}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-sky-600 text-xs font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
+              >
+                Detect Flooding
+              </button>
+              <button
+                onClick={() => handleLaunchPreset("Find anything unusual in this region.")}
+                className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-sky-600 text-xs font-medium text-slate-200 hover:text-white transition-colors cursor-pointer"
+              >
+                Scan Anomalies
+              </button>
+            </div>
+          )}
 
           {/* ── IDLE: Query composer floated over globe ── */}
           {appState === "idle" && (
@@ -377,7 +416,7 @@ export default function MissionControl() {
               jobId={currentJobId}
               question={question}
               onCompleted={() => {
-                // The polling in handleAnalyze already handles transition
+                // The polling in handleAnalyze handles transition
               }}
             />
           </div>
@@ -389,6 +428,14 @@ export default function MissionControl() {
             <AIAnswerPanel
               result={result}
               onHighlightEvidence={handleHighlightEvidence}
+              onOpenEvidenceLens={(claim) => {
+                setSelectedClaim(claim || null);
+                setShowEvidenceLens(true);
+              }}
+              onSelectQuestion={(q) => {
+                setQuestion(q);
+                handleAnalyze(q);
+              }}
             />
           </div>
         )}
@@ -402,7 +449,7 @@ export default function MissionControl() {
               <p className="text-xs text-slate-400 leading-relaxed">{jobError}</p>
               <button
                 onClick={handleReset}
-                className="w-full rounded-xl bg-slate-800 hover:bg-slate-700 py-2.5 text-sm font-medium text-slate-200 transition-colors"
+                className="w-full rounded-xl bg-slate-800 hover:bg-slate-700 py-2.5 text-sm font-medium text-slate-200 transition-colors cursor-pointer"
               >
                 Try Again
               </button>
@@ -418,6 +465,16 @@ export default function MissionControl() {
         liveAgents={liveAgents}
         progress={liveProgress}
       />
+
+      {/* ── EVIDENCE LENS MODAL (Section 18) ──────────── */}
+      {showEvidenceLens && result && (
+        <EvidenceLens
+          result={result}
+          selectedClaim={selectedClaim}
+          onClose={() => setShowEvidenceLens(false)}
+        />
+      )}
     </div>
   );
 }
+

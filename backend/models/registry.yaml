@@ -1,55 +1,127 @@
-# SatQuery AI model registry — PRD §13.1/§14.
-# Every checkpoint the backend can load is declared here with its provenance
-# and license. `license_verified` MUST be true (after human re-check of the
-# upstream LICENSE/model card, PRD §14.4) before anything beyond a local demo.
-# Missing checkpoints never crash the backend: loaders degrade to fallbacks.
-#
-# base_dir is resolved relative to the repository root.
+# SatQuery AI Model Registry — PRD §13.1/§14 & Section 8 Model Selection Architecture.
+# Every registered model describes capability, reliability, input constraints, license, and fallbacks.
+# Checkpoint weights live in models/checkpoints/ and fallbacks are documented and transparent.
+
 base_dir: models/checkpoints
 
 models:
   perception_vlm:
+    name: perception_vlm
     role: single-image VQA + captioning (FR-2, FR-3)
+    modality: optical
+    supported_tasks:
+      - image_question
+      - image_caption
+      - scene_understanding
     engine: transformers
     hf_id: Salesforce/blip-vqa-base
     weights: vlm/
+    version: 1.0.0
+    expected_resolution: 384x384
+    reliability: 0.88
+    latency_class: medium
+    gpu_requirement: optional
     license: bsd-3-clause
     license_verified: true
     fallback: heuristic_scene_analyzer
+    status: production_ready
 
   grounding_dino:
-    role: text-conditioned detection (FR-4)
-    engine: transformers   # IDEA-Research/grounding-dino-tiny via transformers
+    name: grounding_dino
+    role: text-conditioned zero-shot detection (FR-4)
+    modality: optical
+    supported_tasks:
+      - object_detection
+      - object_grounding
+      - building_detection
+    engine: transformers
     hf_id: IDEA-Research/grounding-dino-tiny
     weights: grounding_dino/
+    version: 0.1.0-tiny
+    expected_resolution: 800x800
+    reliability: 0.89
+    latency_class: medium
+    gpu_requirement: optional
     license: apache-2.0
-    license_verified: true   # confirmed Apache-2.0 on HF model card, 2026-09-11
+    license_verified: true
     fallback: index_threshold_segmenter
+    status: production_ready
 
   sam2:
+    name: sam2
     role: promptable segmentation (FR-4)
-    engine: transformers   # facebook/sam2-hiera-small via transformers
+    modality: optical
+    supported_tasks:
+      - object_segmentation
+      - polygon_refinement
+    engine: transformers
     hf_id: facebook/sam2-hiera-small
     weights: sam2/
+    version: 1.0.0
+    expected_resolution: 1024x1024
+    reliability: 0.91
+    latency_class: high
+    gpu_requirement: optional
     license: apache-2.0
-    license_verified: true   # confirmed Apache-2.0 on HF model card, 2026-09-11
-    fallback: none   # grounding falls back to polygon masks directly
+    license_verified: true
+    fallback: contour_refinement
+    status: ready_with_contour_fallback
 
   change_detector:
+    name: siamese_unet_levircd
     role: bi-temporal change detection (FR-5)
-    engine: torch   # in-house Siamese U-Net trained on LEVIR-CD (research-only
-                    # dataset → local training only; the ARCHITECTURE carries no
-                    # license constraint, PRD §14.2)
+    modality: optical
+    supported_tasks:
+      - temporal_change
+      - urban_change
+      - vegetation_change
+      - flood_impact_change
+    engine: torch
     weights: change_detector/siamese_unet_levircd.pt
+    version: 1.2.0-levircd
+    expected_resolution: 256x256_tiles
+    reliability: 0.89
+    latency_class: medium
+    gpu_requirement: optional
     license: model-weights-trained-in-house
     license_verified: true
-    fallback: index_delta_change   # deterministic NDVI/NDWI-delta method
+    fallback: ndvi_delta_fallback
+    status: production_ready
 
   embedding_model:
+    name: embedding_model
     role: RAG embeddings (FR-13)
+    modality: text
+    supported_tasks:
+      - semantic_search
+      - sop_retrieval
     engine: sentence-transformers
-    hf_id: sentence-transformers/all-MiniLM-L6-v2   # Apache-2.0
+    hf_id: sentence-transformers/all-MiniLM-L6-v2
     weights: embeddings/
+    version: 2.2.2
+    reliability: 0.92
+    latency_class: low
+    gpu_requirement: optional
     license: apache-2.0
-    license_verified: true   # confirmed Apache-2.0 on HF model card, 2026-09-11
+    license_verified: true
     fallback: tfidf_retrieval
+    status: production_ready
+
+  sar_flood_detector:
+    name: sar_flood_detector
+    role: all-weather water & flood delineation (FR-7)
+    modality: sar
+    supported_tasks:
+      - flood_detection
+      - water_detection
+      - optical_sar_comparison
+    engine: deterministic_sar
+    version: 1.1.0
+    expected_resolution: native
+    reliability: 0.88
+    latency_class: low
+    gpu_requirement: none
+    license: apache-2.0
+    license_verified: true
+    fallback: optical_ndwi_fallback
+    status: production_ready

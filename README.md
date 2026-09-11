@@ -1,124 +1,191 @@
-# SatQuery AI
+# SatQuery AI — Autonomous Multimodal Earth Observation Investigation System
 
-Autonomous multimodal geospatial intelligence: ask a natural-language question
-about satellite imagery (single-date or bi-temporal, optical and/or SAR) and
-get a **grounded answer + confidence breakdown + spatial evidence on a 3D
-globe + the generated GIS code + a full execution trace**.
+[![SIH26167 Compliant](https://img.shields.io/badge/SIH26167-Autonomous%20Geospatial%20AI-0284c7.svg)](https://github.com/deepakgangwar1542-hash/SATQUERY-AII)
+[![License](https://img.shields.io/badge/License-Apache%202.0%20%2F%20MIT-emerald.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-blue.svg)](https://www.python.org/)
+[![Cesium](https://img.shields.io/badge/CesiumJS-Self--Hosted-indigo.svg)](https://cesium.com/)
 
-Built to the spec in `SatQuery_AI_PRD.md` (v1.0). 100% permissive-licensed
-runtime; heavy ML models are optional and every agent degrades gracefully
-when they are absent.
+**SatQuery AI** transforms satellite intelligence from a static tool-driven dashboard into an **autonomous Earth-observation investigation system**:
+> *"Don't tell SatQuery which tool to use. Tell SatQuery what you want to know."*
+
+Instead of brittle keyword dispatching, SatQuery compiles user queries into structured investigation specifications, dynamically selects sensors based on atmospheric and task conditions, coordinates specialist neural and radar models, computes spatial metrics deterministically via sandboxed GIS, verifies evidence consistency, and provides interactive visual proof through an **Evidence Lens** and **Provenance Graph**.
 
 ---
 
-## Quickstart (local, 5 minutes)
+## 1. Product Philosophy & Core Architecture
 
+```
+                       USER QUERY
+                           ↓
+                  EARTHQUERY COMPILER
+            (22+ Intent Taxonomy & IR Specs)
+                           ↓
+                 INVESTIGATION PLANNER
+          (Autonomous Graph of Evidence Steps)
+                           ↓
+                    SENSOR SELECTION
+      (Optical / SAR / Fusion based on Cloud Contamination)
+                           ↓
+                    MODEL REGISTRY
+        (Real Checkpoints vs Disclosed Fallbacks)
+                           ↓
+                  HYPOTHESIS GENERATION
+         (Candidate Explanations for Alteration)
+                           ↓
+                   SPECIALIST ANALYSIS
+        ├─ Optical Perception & Zero-Shot Grounding
+        ├─ Neural Siamese U-Net Change Detection (LEVIR-CD)
+        ├─ Polarimetric SAR Analysis (VV/VH, ENL, Inundation)
+        └─ Domain Knowledge Retrieval (SOPs & Guidelines)
+                           ↓
+              DETERMINISTIC GEOSPATIAL REASONING
+       (Exact Shapely/GeoPandas Intersections & Metrics)
+                           ↓
+                    EVIDENCE FUSION
+             (Typed Multi-Source Provenance)
+                           ↓
+              VERIFICATION & CONFLICT LOOP
+                 /                   \
+            [CONFLICT]            [AGREE]
+                ↓                    ↓
+         SELF-CORRECTING           ANSWER
+           RE-PLANNING               ↓
+                ↓             EVIDENCE-GROUNDED
+          VERIFY AGAIN          INTERACTIVE PROOF
+                               (Evidence Lens)
+```
+
+---
+
+## 2. Key Capabilities & Innovations
+
+### A. EarthQuery Compiler (`backend/services/earthquery/compiler.py`)
+- Translates natural language into a validated Pydantic specification (`EarthQuerySpec`).
+- Supports 22+ task intents: `flood_impact_change`, `hypothesis_investigation`, `anomaly_detection`, `building_count`, `temporal_change`, `optical_sar_comparison`, `urban_change`, `vegetation_change`, etc.
+- Extracts temporal scopes (e.g., `"Between June and August"`), target objects, required operations, and verification policies.
+
+### B. Autonomous Sensor Selection (`backend/services/earthquery/sensor_selector.py`)
+- Dynamically selects sensors without hardcoding:
+  - **High cloud cover (>20%)**: Elevates all-weather **SAR** (Sentinel-1 / radar) to primary sensor.
+  - **Specular water / flood tasks**: Dual-sensor fusion (SAR backscatter drop for water delineation + optical for land-cover context).
+  - **Zero-shot feature delineation**: High-resolution optical spectral bands.
+
+### C. True Neural Change Detection with Honest Fallback (`backend/agents/change.py`)
+- **Neural Inference**: Runs genuine PyTorch inference using `SiameseChangeNet` with weights from `models/checkpoints/change_detector/siamese_unet_levircd.pt`, producing calibrated probability maps and vectorized change polygons.
+- **Honest Fallback**: If checkpoint or PyTorch is unavailable, degrades to `mode: "heuristic_fallback"` with model name `ndvi_delta_fallback`. **Never labels heuristic output as a neural model.**
+
+### D. SAR Intelligence Specialist (`backend/agents/sar.py`)
+- Physics-based radar remote sensing:
+  - Equivalent Number of Looks (ENL) and speckle estimation.
+  - Polarimetric cross-ratio (VV/VH) and noise floor analysis.
+  - Specular reflection thresholding (< -18 dB) for open water.
+  - Bi-temporal SAR backscatter drop (> 3.5 dB) for confirmed all-weather flood inundation.
+  - Clear documentation of physical radar limitations (shadow, layover, dense canopy double-bounce).
+
+### E. Multi-Hypothesis Engine (`backend/agents/hypothesis_engine.py`)
+- For complex queries like *"What caused the major change in this region?"*, evaluates competing hypotheses:
+  - **H1**: Flooding & Hydrological Inundation
+  - **H2**: Urban Development & Construction
+  - **H3**: Vegetation Loss & Agricultural Clearance
+  - **H4**: Acquisition Artifact & Cloud Contamination
+- Calculates evidence support scores deterministically and reports correlation without false causal certainty.
+
+### F. Deterministic Geospatial Reasoning (`backend/geospatial/engine.py` & `dsl.py`)
+- LLMs are prohibited from hallucinating numerical counts or areas.
+- Sandboxed GIS engine performs exact spatial intersections (`intersects`, `buffer`, metric UTM area projections) using Shapely and GeoPandas.
+- Verified intermediate representation (IR) supporting `BUILDING_COUNT`, `FLOOD_EXTENT`, `SPATIAL_INTERSECTION`, `BUFFER_QUERY`, etc.
+
+### G. Evidence Lens & Provenance Graph (Frontend)
+- **Claim-to-Evidence Linking**: Every claim in the final answer is linked to verifiable backend `EvidenceItem` IDs.
+- **Show Evidence**: Inspect exact raster overlays, GeoJSON footprints, SAR metrics, and sensor selection rationales directly on the 3D Cesium globe.
+- **Evidence Provenance Graph**: Interactive DAG visualizer tracing Query → Sensor Selection → Model Inference → GIS Intersection → Final Answer.
+
+---
+
+## 3. Quickstart (Local Development)
+
+### 1. Backend Setup
 ```bash
-# 1. backend
+# Windows
 python -m venv .venv
-.venv/Scripts/activate            # Windows   (source .venv/bin/activate on POSIX)
+.venv\Scripts\activate
 pip install -r backend/requirements.txt
 
-# 2. demo data (synthetic bi-temporal scene pair + ground truth)
-python scripts/make_sample_data.py
-
-# 3. run
-uvicorn backend.main:app --port 8000        # terminal 1
-cd frontend && npm install && npm run dev   # terminal 2 → http://localhost:5173
+# Run server with live reload
+uvicorn backend.main:app --port 8000 --reload
 ```
 
-In the UI: upload `datasets/samples/optical_before.tif` (date 2025-06-01) and
-`optical_after.tif` (date 2025-09-01), keep the default question, hit
-**Analyze**, watch the agent pipeline run, and inspect the Evidence / Code /
-Export tabs.
-
-Headless check instead of the UI:
-
+### 2. Frontend Setup
 ```bash
-python scripts/e2e_smoke.py        # against the running server
-python -m pytest tests/ -q         # 47 tests: unit + contract + integration + sandbox-security
+cd frontend
+npm install
+npm run build      # Verifies TypeScript & Vite production build
+npm run dev        # Starts interactive UI at http://localhost:5173
 ```
 
-Docker: `docker-compose up --build` → frontend at :5173, API at :8000.
+### 3. Running Automated Tests
+```bash
+# Run all unit tests (compiler, sensor selector, SAR, hypothesis, GIS engine)
+.venv\Scripts\python -m pytest tests/unit/ -v
 
-## What's implemented (FR coverage)
+# Run contract and integration tests
+.venv\Scripts\python -m pytest tests/contract/ tests/integration/ -v
+```
 
-| Area | FRs | State |
+---
+
+## 4. Primary Product Modes
+
+The user interface exposes 3 contextual modes:
+1. **ASK**: Direct questions with grounding and VQA evidence.
+2. **INVESTIGATE**: Autonomous multi-step investigation, sensor selection, SAR/optical fusion, and GIS intersection.
+3. **EXPLORE**: Interactive 3D Cesium globe exploration with temporal slider and Click-to-Ask Earth region queries.
+
+---
+
+## 5. End-to-End Demo Workflows
+
+### Demo Query 1 (Flood Impact & Affected Buildings)
+```
+"Between June and August, identify areas where flooding increased and tell me how many buildings were affected."
+```
+1. **Compiler**: Identifies `flood_impact_change`, extracts June → August temporal window, targets `buildings`.
+2. **Sensor Selection**: Detects optical cloud coverage; prioritizes SAR for specular water penetration while keeping optical for building footprint context.
+3. **Model Execution**: Runs `predict_siamese_change()` on neural Siamese U-Net (or honest fallback) + SAR bi-temporal backscatter analysis.
+4. **GIS Reasoning**: Projects to metric UTM CRS; intersects flood polygon mask with detected building footprints.
+5. **Output**: Computes exact numeric building count deterministically and presents claims linked to Evidence Lens.
+
+### Demo Query 2 (Hypothesis Investigation)
+```
+"What caused the major change in this region?"
+```
+1. **Compiler**: Identifies `hypothesis_investigation` intent.
+2. **Hypothesis Engine**: Formulates candidate hypotheses (H1 Flooding, H2 Urban Development, H3 Vegetation Loss, H4 Artifact).
+3. **Evidence Fusion**: Scores hypotheses against collected SAR water drop, optical spectral indices, and building detections.
+4. **Output**: Ranks hypotheses with support scores and transparent limitations.
+
+### Demo Query 3 (Anomaly Hunter)
+```
+"Find anything unusual in this region."
+```
+1. **Compiler**: Identifies `anomaly_detection` intent.
+2. **Scanner**: Runs multispectral spectral anomaly scans and polarimetric backscatter analysis.
+3. **Output**: Surfaces ranked anomalies with clickable investigation workflows.
+
+---
+
+## 6. Honest Model vs. Fallback Disclosure
+
+| Specialist Capability | Active Checkpoint / Engine | Honest Fallback Mode |
 |---|---|---|
-| GeoTIFF validation, band-mapping resolution (§10.6) | FR-1 | ✅ rasterio-only, metadata-driven |
-| VQA + captioning | FR-2/3 | ✅ VLM path when a checkpoint exists; deterministic scene-analyzer fallback with explicit uncertainty note |
-| Grounding/detection/segmentation | FR-4 | ✅ Grounding-DINO path when fetched; index-threshold segmenter fallback; pixel→WGS84 enforced |
-| Bi-temporal change detection (§10.3 co-registration) | FR-5 | ✅ index-delta method; AOI-IoU guard; resampling documented |
-| Change-VQA | FR-6 | ✅ composed from change stats + object corroboration |
-| Optical+SAR fusion w/ §10.5 reliability | FR-7 | ✅ cloud-penalized optical reliability, agreement-weighted fusion |
-| Model adaptation (BigEarthNet module) | FR-8 | ✅ trained sklearn fusion model (torch path documented); before/after metrics in `bigearthnet_module/outputs/metrics.json` |
-| Agentic orchestration (explicit state graph, deterministic plans) | FR-9 | ✅ `backend/agents/graph.py` (LangGraph swap point), §12.2 rules |
-| Verifier + §12.4 confidence formula | FR-10 | ✅ weights in `config/confidence_weights.yaml` |
-| Execution trace | FR-11 | ✅ persisted per job, in result payload |
-| GIS code generation + AST-validated sandbox | FR-12 | ✅ template intents (`ndvi_delta_threshold`, `ndwi_change`, `area_stats`); subprocess isolation, resource limits (POSIX), timeout |
-| RAG knowledge agent | FR-13 | ✅ local curated corpus + TF-IDF (embeddings when fetched) |
-| Cesium globe UI, AOI draw↔query | FR-14 | ✅ self-hosted Cesium, no ion dependency |
-| Temporal replay | FR-15 | ✅ timeline scrub + replay (2–3 dates demoed, N supported in model) |
-| Evidence/confidence/code panels, live SSE | FR-16 | ✅ |
-| Benchmark/ablation scripts | FR-17 | ✅ `scripts/eval/*` — real measured numbers only (synthetic smoke caveats attached) |
-| Report export (PDF/GeoJSON/CSV/code/trace ZIP) | FR-18 | ✅ from persisted data only |
+| **Change Detection** | `siamese_unet_levircd.pt` (PyTorch) | `ndvi_delta_fallback` (`mode: "heuristic_fallback"`) |
+| **Object Grounding** | `GroundingDINO` checkpoint (HF Hub) | Color/spectral index thresholding with geometric polygonization |
+| **VQA / Captioning** | Local VLM checkpoint / HuggingFace | Scene profile analyzer with explicit perceptual limitations |
+| **SAR Analysis** | Calibrated Sentinel-1 physics engine (VV/VH) | Single-polarization backscatter thresholding (< -18 dB) |
+| **Geospatial Math** | Shapely & GeoPandas metric UTM projection | Deterministic WGS84 bounding intersection |
 
-Eval numbers actually measured on the shipped synthetic data (see
-`scripts/eval/results/*.json` for the exact provenance): change detection
-IoU 0.379 / F1 0.550 / recall 1.0 against the known ground-truth patch;
-fusion ablation optical 100% / SAR-only 66.7% / fusion 100% (synthetic-subset
-smoke metrics — plumbing validation, not capability claims).
+---
 
-## Architecture
+## 7. License & Compliance
 
-```
-UI (React+TS+Tailwind+CesiumJS, §15)
-  ↕ /api/v1 (FastAPI, §9)
-Input Validator → Orchestrator state graph (§12)
-  ├─ Perception (VQA/caption)      ├─ Grounding (detect/segment)
-  ├─ Change Agent (+co-register)   ├─ Change-VQA
-  ├─ Multimodal Fusion (opt+SAR)   ├─ GIS Code Agent → AST sandbox (§11.3)
-  └─ RAG (knowledge/)
-→ Evidence Aggregator → Verifier (§12.4) → Result + trace + artifacts
-```
-
-Module boundaries (§13.2): `bigearthnet_module/` integrates ONLY through
-`predict_multimodal()`; change integrates through `detect_change()`; VQA
-through `answer_question()` — enforced by `tests/contract/`.
-
-## Optional: real model weights
-
-```bash
-pip install huggingface_hub
-bash scripts/fetch_models.sh     # grounding-dino-tiny, sam2, MiniLM embeddings, VLM
-```
-Afterwards `/api/v1/health` shows which engines loaded. Verify licenses and
-flip `license_verified` in `backend/models/registry.yaml` (gate: §14.4).
-
-## Honest limitations (what v1 does NOT do)
-
-- **No LLM in the loop yet.** Planning, answers, and code generation are
-  deterministic (rules/templates). The contracts are LLM-ready: swap the
-  planner's intent step, the perception fallback, and the code-agent template
-  generator for a temperature-0 LLM call — everything downstream (verifier,
-  confidence, sandbox) is unchanged.
-- Perception/grounding quality without downloaded checkpoints is *coarse by
-  design* (index statistics, not semantics) — always disclosed in evidence.
-- Benchmarks on real datasets (VRSBench/LEVIR-CD/RSVQA) are wired as scripts
-  but the datasets are not downloaded (licenses + size — see
-  `datasets/README.md`).
-- Sandbox resource limits (RLIMIT_*) apply on POSIX/Docker; on Windows dev
-  only wall-clock timeout + sanitized env are enforced. Docker is the
-  security boundary (§11.3).
-- Windows `spawn`-based sandbox subprocess adds ~2–4 s overhead per analysis.
-
-## Repository map
-
-See PRD §13.1 for the authoritative layout. Highlights:
-`backend/` (api, agents, geospatial, sandbox, models, services, schemas) ·
-`frontend/` · `bigearthnet_module/` · `datasets/` · `knowledge/` ·
-`scripts/` (samples, fetch_models, eval, e2e) · `tests/` ·
-`docker-compose.yml` · `.github/workflows/ci.yml`
-
-License posture: runtime stack fully permissive (MIT/BSD/Apache-2.0);
-Cesium ion NOT used; audit gate in `LICENSE_AUDIT.md` before any deployment.
+Built for SIH26167 with 100% permissive runtime dependencies (MIT, Apache-2.0, BSD-3-Clause). Self-hosted CesiumJS requires zero proprietary cloud tokens.

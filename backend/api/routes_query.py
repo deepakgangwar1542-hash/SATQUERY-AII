@@ -36,6 +36,28 @@ def submit_query(req: dict, background: BackgroundTasks):
     return {"job_id": job["job_id"], "status": "queued"}
 
 
+@router.post("/query/compile")
+def compile_query_preview(req: dict):
+    """Compiles natural language into an EarthQuery specification and investigation plan preview."""
+    question = req.get("question")
+    if not question or len(str(question)) < 3:
+        return problem(422, "Validation Error", "question must be >= 3 chars")
+    from ..agents.planner import build_investigation_plan
+    plan_obj, spec, understanding = build_investigation_plan(
+        query=question,
+        assets=req.get("assets", []),
+        spatial_scope=req.get("region"),
+    )
+    from ..services.earthquery.sensor_selector import AutonomousSensorSelector
+    sensor_sel = AutonomousSensorSelector.select_sensors(spec, req.get("assets", []))
+    return {
+        "earthquery_spec": spec.model_dump(),
+        "query_understanding": understanding.model_dump(),
+        "investigation_plan": plan_obj.model_dump(),
+        "sensor_selection": sensor_sel.model_dump(),
+    }
+
+
 @router.get("/result/{job_id}")
 def get_result(job_id: str):
     job = job_store.get_job(job_id)
@@ -45,3 +67,4 @@ def get_result(job_id: str):
         return problem(409, "Job Not Completed",
                        f"job {job_id} is {job['status']}")
     return job["result"]
+

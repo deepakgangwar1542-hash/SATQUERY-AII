@@ -147,10 +147,18 @@ def fail_job(job_id: str, error: str) -> None:
     _emit(job_id, {"status": "failed", "error": error})
 
 
+def emit_event(job_id: str, event_type: str, data: dict | None = None) -> None:
+    """Emits typed investigation events for real-time SSE streaming (Section 21)."""
+    payload = {"event": event_type, "data": data or {}}
+    with _LOCK:
+        _emit(job_id, payload)
+
+
 def get_events(job_id: str) -> list[dict]:
     """Live event log for the SSE stream (in-memory; trace is the durable record)."""
     with _LOCK:
         return list(_EVENTS.get(job_id, []))
+
 
 
 def json_dumps(obj) -> str:

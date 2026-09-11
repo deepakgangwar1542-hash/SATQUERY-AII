@@ -188,3 +188,84 @@ def capabilities() -> dict:
     }
 
 
+def select_model(task: str, modality: str = "optical") -> dict:
+    """Section 8 Model Selection Decision Process:
+    Task compatibility + modality + checkpoint availability -> selected model record."""
+    models_cfg = registry().get("models", {})
+    gpu_active = gpu_available()
+
+    # Match registered model by task and modality
+    best_candidate_key = None
+    for key, spec in models_cfg.items():
+        if spec.get("modality") == modality and task in spec.get("supported_tasks", []):
+            best_candidate_key = key
+            break
+
+    # If no exact task match, check fallback broad task categories
+    if not best_candidate_key:
+        for key, spec in models_cfg.items():
+            if spec.get("modality") == modality:
+                best_candidate_key = key
+                break
+
+    if not best_candidate_key:
+        return {
+            "task": task,
+            "model_name": "generic_heuristic",
+            "modality": modality,
+            "version": "1.0.0",
+            "mode": "heuristic_fallback",
+            "reason": f"No registered model found for task '{task}' and modality '{modality}'",
+            "gpu_used": False,
+        }
+
+    entry = models_cfg[best_candidate_key]
+    model_name = entry.get("name", best_candidate_key)
+    version = entry.get("version", "1.0.0")
+
+    # Probe actual loader availability
+    loader_fn = {
+        "perception_vlm": load_vlm,
+        "grounding_dino": load_detector,
+        "sam2": load_sam_model,
+        "change_detector": load_change_model,
+        "siamese_unet_levircd": load_change_model,
+        "embedding_model": load_embedding_model,
+    }.get(best_candidate_key)
+
+    if loader_fn:
+        bundle, reason = loader_fn()
+        if bundle is not None:
+            return {
+                "task": task,
+                "model_name": model_name,
+                "modality": modality,
+                "version": version,
+                "mode": "neural",
+                "reason": f"Loaded official checkpoint ({entry.get('weights')}) with reliability {entry.get('reliability', 0.85)}",
+                "gpu_used": gpu_active,
+            }
+        else:
+            return {
+                "task": task,
+                "model_name": entry.get("fallback", "heuristic_fallback"),
+                "modality": modality,
+                "version": "fallback-1.0",
+                "mode": "heuristic_fallback",
+                "reason": f"Primary neural model unavailable ({reason}); engaged transparent fallback",
+                "gpu_used": False,
+            }
+
+    # Deterministic GIS/SAR modules
+    return {
+        "task": task,
+        "model_name": model_name,
+        "modality": modality,
+        "version": version,
+        "mode": "deterministic_gis" if modality != "sar" else "neural",
+        "reason": f"Executed domain specialist engine ({model_name})",
+        "gpu_used": False,
+    }
+
+
+

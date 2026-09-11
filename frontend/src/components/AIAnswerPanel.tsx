@@ -10,13 +10,15 @@
  * Uses REAL backend data only. No hardcoded values.
  */
 import { useState } from "react";
-import type { QueryResult, SopEntry } from "../services/types";
+import type { QueryResult, SopEntry, Claim } from "../services/types";
 import { CodePanel } from "./CodePanel";
 import * as api from "../services/api";
 
 interface Props {
   result: QueryResult;
   onHighlightEvidence?: () => void;
+  onOpenEvidenceLens?: (claim?: Claim | null) => void;
+  onSelectQuestion?: (q: string) => void;
 }
 
 type Tab = "answer" | "evidence" | "reasoning" | "export";
@@ -36,7 +38,12 @@ const SEV_COLOR: Record<string, string> = {
   low: "text-slate-400",
 };
 
-export function AIAnswerPanel({ result, onHighlightEvidence }: Props) {
+export function AIAnswerPanel({
+  result,
+  onHighlightEvidence,
+  onOpenEvidenceLens,
+  onSelectQuestion,
+}: Props) {
   const [tab, setTab] = useState<Tab>("answer");
   const [showConfidenceBreakdown, setShowConfidenceBreakdown] = useState(false);
   const [showPipeline, setShowPipeline] = useState(false);
@@ -47,13 +54,17 @@ export function AIAnswerPanel({ result, onHighlightEvidence }: Props) {
   const isMedConf = pct >= 55 && pct < 80;
   const sops: SopEntry[] = result.rag_sops ?? [];
   const totalAgents = result.agents_used?.length ?? 0;
+  const claims = result.claims || [];
+  const hypotheses = result.hypotheses || [];
+  const followUps = result.follow_up_questions || [];
+  const sensorDecision = result.sensor_selection;
 
   // Compute total trace time
   const totalMs = result.execution_trace.reduce((acc, t) => acc + (t.duration_ms || 0), 0);
   const totalSec = (totalMs / 1000).toFixed(1);
 
   const tabClass = (t: Tab) =>
-    `px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+    `px-4 py-2.5 text-sm font-medium border-b-2 transition-colors cursor-pointer ${
       tab === t
         ? "border-sky-500 text-sky-400"
         : "border-transparent text-slate-400 hover:text-slate-200"
@@ -63,11 +74,20 @@ export function AIAnswerPanel({ result, onHighlightEvidence }: Props) {
     <div className="flex flex-col h-full bg-slate-900/70 border-l border-slate-800/80 animate-slide-right overflow-hidden">
       {/* ── Header ─────────────────────────────────────────── */}
       <div className="px-5 pt-5 pb-4 border-b border-slate-800/60">
-        <div className="flex items-center gap-2 mb-3">
-          <span className="flex h-2 w-2 rounded-full bg-emerald-400" />
-          <span className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
-            Analysis Complete
-          </span>
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <span className="flex h-2 w-2 rounded-full bg-emerald-400" />
+            <span className="text-xs font-semibold uppercase tracking-widest text-emerald-400">
+              Investigation Complete
+            </span>
+          </div>
+
+          {/* Autonomous sensor badge */}
+          {sensorDecision?.primary && (
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-950 border border-sky-700/60 text-sky-300 font-bold">
+              {sensorDecision.primary.toUpperCase()} (Primary)
+            </span>
+          )}
         </div>
 
         {/* ── Confidence summary (always visible) ── */}
@@ -99,7 +119,7 @@ export function AIAnswerPanel({ result, onHighlightEvidence }: Props) {
           {result.confidence_breakdown.evidence_agreement > 0.8 && (
             <p className="text-xs text-slate-300 flex items-center gap-1.5">
               <span className="text-emerald-400">✓</span>
-              Evidence consistent across agents
+              Evidence consistent across sensors & models
             </p>
           )}
           {result.confidence_breakdown.spatial_consistency > 0.8 && (
@@ -108,18 +128,12 @@ export function AIAnswerPanel({ result, onHighlightEvidence }: Props) {
               Spatially verified ({result.location.features.length} features)
             </p>
           )}
-          {result.confidence_breakdown.temporal_consistency > 0.8 && (
-            <p className="text-xs text-slate-300 flex items-center gap-1.5">
-              <span className="text-emerald-400">✓</span>
-              Temporal relationship verified
-            </p>
-          )}
         </div>
 
         {/* Expandable confidence breakdown */}
         <button
           onClick={() => setShowConfidenceBreakdown((v) => !v)}
-          className="mt-3 text-xs text-sky-400 hover:text-sky-300 transition-colors"
+          className="mt-3 text-xs text-sky-400 hover:text-sky-300 transition-colors cursor-pointer"
         >
           {showConfidenceBreakdown ? "▴ Hide breakdown" : "▾ View Confidence Breakdown"}
         </button>
@@ -159,16 +173,59 @@ export function AIAnswerPanel({ result, onHighlightEvidence }: Props) {
 
         {/* ANSWER TAB */}
         {tab === "answer" && (
-          <div className="p-5 space-y-5">
+          <div className="p-5 space-y-4">
             {/* The answer text */}
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-500 mb-2">
-                SatQuery AI Answer
+                EarthQuery Verified Answer
               </p>
-              <p className="text-sm text-slate-100 leading-relaxed whitespace-pre-line">
+              <p className="text-sm text-slate-100 leading-relaxed whitespace-pre-line font-normal">
                 {result.answer}
               </p>
             </div>
+
+            {/* Evidence Lens Call to Action */}
+            <div className="rounded-xl bg-gradient-to-r from-sky-950/60 to-indigo-950/60 border border-sky-500/40 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-sky-300">
+                  Ground-Truth Proof
+                </span>
+                <span className="text-[10px] font-mono text-emerald-400">
+                  {result.artifacts.length} Artifacts Available
+                </span>
+              </div>
+              <button
+                onClick={() => onOpenEvidenceLens && onOpenEvidenceLens(null)}
+                className="w-full py-2 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5"
+              >
+                <span>🔍</span> SHOW EVIDENCE LENS
+              </button>
+            </div>
+
+            {/* Audited Claims */}
+            {claims.length > 0 && (
+              <div className="rounded-xl border border-slate-800 bg-slate-950/50 p-3 space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Traceable Claims ({claims.length})
+                </span>
+                <div className="space-y-1.5">
+                  {claims.map((c) => (
+                    <div
+                      key={c.id}
+                      className="p-2 rounded-lg border border-slate-800 bg-slate-900/70 flex items-center justify-between"
+                    >
+                      <span className="text-xs text-slate-200 pr-2">{c.text}</span>
+                      <button
+                        onClick={() => onOpenEvidenceLens && onOpenEvidenceLens(c)}
+                        className="shrink-0 px-2 py-0.5 rounded bg-sky-950 border border-sky-700 text-[10px] font-mono text-sky-300 hover:bg-sky-900 cursor-pointer"
+                      >
+                        Inspect ↗
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Globe evidence CTA */}
             {result.location.features.length > 0 && (
@@ -178,6 +235,7 @@ export function AIAnswerPanel({ result, onHighlightEvidence }: Props) {
                     {result.location.features.length} regions on globe
                   </p>
                   <p className="text-xs text-slate-400 mt-0.5">
+
                     Spatial evidence rendered on the 3D Earth
                   </p>
                 </div>

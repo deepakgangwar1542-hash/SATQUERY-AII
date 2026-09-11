@@ -113,22 +113,73 @@ def spatial_consistency(outputs: dict) -> float:
         return 0.9  # evaluation failed; slight penalty + note below
 
 
-def compute(outputs: dict, validator_output: dict, dates: list[str]) -> dict:
+def compute(
+    outputs: dict,
+    validator_output: dict,
+    dates: list[str],
+    policy: str = "general",
+) -> dict:
     w = weights()
     confs = [o.get("confidence") for o in outputs.values()
              if isinstance(o, dict) and isinstance(o.get("confidence"), (int, float))]
     model_confidence = round(sum(confs) / len(confs), 3) if confs else 0.5
     agreement, conflicts = evidence_agreement(outputs)
     profile = (outputs.get("perception") or {}).get("scene_profile")
+    sensor_rel = sensor_reliability(outputs)
+    d_quality = data_quality(validator_output, profile)
+    s_consistency = spatial_consistency(outputs)
+    t_consistency = 1.0 if len(dates) < 3 else _temporal(outputs, dates)
+
+    # Base breakdown
     breakdown = {
         "model_confidence": model_confidence,
         "evidence_agreement": round(agreement, 3),
-        "sensor_reliability": sensor_reliability(outputs),
-        "data_quality": data_quality(validator_output, profile),
-        "spatial_consistency": spatial_consistency(outputs),
-        "temporal_consistency": 1.0 if len(dates) < 3 else _temporal(outputs, dates),
+        "sensor_reliability": sensor_rel,
+        "data_quality": d_quality,
+        "spatial_consistency": s_consistency,
+        "temporal_consistency": t_consistency,
     }
-    final = round(sum(w[k] * breakdown[k] for k in BREAKDOWN_KEYS), 3)
+
+    # Policy adjustments
+    factors = []
+    limitations = []
+
+    if policy == "flood_detection":
+        # SAR specular + water evidence + temporal consistency
+        sar_out = outputs.get("sar_agent") or {}
+        sar_conf = sar_out.get("confidence", 0.85)
+        factors.append({"factor": "SAR specular backscatter", "weight": 0.35, "score": sar_conf})
+        factors.append({"factor": "Multimodal water agreement", "weight": 0.30, "score": round(agreement, 3)})
+        factors.append({"factor": "Cloud transparency", "weight": 0.20, "score": d_quality})
+        factors.append({"factor": "Spatial delineation", "weight": 0.15, "score": s_consistency})
+        final = round(0.35 * sar_conf + 0.30 * agreement + 0.20 * d_quality + 0.15 * s_consistency, 3)
+        limitations.extend(sar_out.get("limitations", []))
+
+    elif policy == "building_count":
+        # Grounding confidence + resolution + spatial consistency
+        gout = outputs.get("grounding") or {}
+        det_conf = gout.get("confidence", 0.8)
+        factors.append({"factor": "Grounding detector confidence", "weight": 0.40, "score": det_conf})
+        factors.append({"factor": "Spatial geometry consistency", "weight": 0.35, "score": s_consistency})
+        factors.append({"factor": "Optical image quality", "weight": 0.25, "score": d_quality})
+        final = round(0.40 * det_conf + 0.35 * s_consistency + 0.25 * d_quality, 3)
+        if len(gout.get("objects", [])) > 50:
+            limitations.append("High object density: small structural footprints may exhibit partial border merging.")
+
+    elif policy == "change_detection":
+        # Change model confidence + multimodal agreement + temporal
+        chg_out = outputs.get("change_agent") or {}
+        chg_conf = chg_out.get("confidence", 0.75)
+        factors.append({"factor": "Siamese change network", "weight": 0.35, "score": chg_conf})
+        factors.append({"factor": "Evidence agreement", "weight": 0.30, "score": round(agreement, 3)})
+        factors.append({"factor": "Temporal consistency", "weight": 0.20, "score": t_consistency})
+        factors.append({"factor": "Coregistration quality", "weight": 0.15, "score": d_quality})
+        final = round(0.35 * chg_conf + 0.30 * agreement + 0.20 * t_consistency + 0.15 * d_quality, 3)
+
+    else:
+        # Standard weighted combination
+        final = round(sum(w[k] * breakdown[k] for k in BREAKDOWN_KEYS), 3)
+        factors = [{"factor": k.replace("_", " ").capitalize(), "weight": w[k], "score": breakdown[k]} for k in BREAKDOWN_KEYS]
 
     thresholds = w.get("verdict_thresholds", {"consistent": 0.75, "partially_consistent": 0.45})
     if agreement >= thresholds["consistent"]:
@@ -140,27 +191,49 @@ def compute(outputs: dict, validator_output: dict, dates: list[str]) -> dict:
 
     uncertainty: list[dict] = []
     for c in conflicts:
-        uncertainty.append({"signal": "evidence_conflict", "severity": "high"
-                            if verdict == "CONFLICTING" else "medium",
-                            "explanation": c})
+        uncertainty.append({
+            "signal": "evidence_conflict",
+            "severity": "high" if verdict == "CONFLICTING" else "medium",
+            "explanation": c,
+        })
     if breakdown["sensor_reliability"] < 0.7:
         uncertainty.append({
-            "signal": "low_sensor_reliability", "severity": "medium",
-            "explanation": f"Sensor reliability scored {breakdown['sensor_reliability']} "
-                           "(cloud contamination or SAR baseline)."})
+            "signal": "low_sensor_reliability",
+            "severity": "medium",
+            "explanation": f"Sensor reliability scored {breakdown['sensor_reliability']} (cloud contamination or SAR noise).",
+        })
     if not confs:
         uncertainty.append({
-            "signal": "no_specialist_confidence", "severity": "high",
-            "explanation": "No specialist agent produced a confidence; "
-                           "model_confidence defaulted to 0.5."})
-    return {"confidence_breakdown": breakdown, "final_confidence": final,
-            "consistency_verdict": verdict, "uncertainty": uncertainty}
+            "signal": "no_specialist_confidence",
+            "severity": "high",
+            "explanation": "No specialist agent produced a confidence; model_confidence defaulted to 0.5.",
+        })
+
+    conf_level = "high" if final >= 0.80 else ("medium" if final >= 0.55 else "low")
+
+    task_specific_block = {
+        "score": final,
+        "level": conf_level,
+        "factors": factors,
+        "limitations": limitations,
+        "policy": policy,
+    }
+
+    return {
+        "confidence_breakdown": breakdown,
+        "final_confidence": final,
+        "consistency_verdict": verdict,
+        "uncertainty": uncertainty,
+        "conflicts": conflicts,
+        "needs_replan": verdict == "CONFLICTING",
+        "task_specific": task_specific_block,
+    }
 
 
 def _temporal(outputs: dict, dates: list[str]) -> float:
-    """§12.4: for ≥3-date sequences, penalize implausible oscillation.
-    v1 analyses are 2-date; this path activates when 3+ dates exist."""
+    """§12.4: for ≥3-date sequences, penalize implausible oscillation."""
     vqa = (outputs.get("change_vqa") or {}).get("answer", "")
     if dates and _direction(vqa) is None:
         return 0.9  # multi-date run without a clear monotonic narrative
     return 1.0
+
