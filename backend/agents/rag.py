@@ -64,27 +64,49 @@ def _tfidf():
 
 def retrieve(query: str, k: int = 3) -> dict:
     chunks = _corpus()
-    if not chunks:
-        return {"passages": [], "note": "knowledge_base_empty"}
     emb, _reason = None, None
     try:
         from ..models import loaders
         emb, _reason = loaders.load_embedding_model()
     except Exception:
         emb = None
-    if emb is not None:
-        import numpy as np
-        vecs = emb.encode([c["text"] for c in chunks], normalize_embeddings=True)
-        qv = emb.encode([query], normalize_embeddings=True)
-        scores = (np.asarray(vecs) @ np.asarray(qv).T).ravel()
-    else:
-        vec, mat = _tfidf()
-        scores = (mat @ vec.transform([query]).T).toarray().ravel()
-    top = sorted(zip(scores, chunks), key=lambda t: t[0], reverse=True)[:k]
-    passages = [
-        {"text": c["text"], "source": c["source"], "section": c["section"],
-         "score": round(float(s), 4)}
-        for s, c in top if s > 0.01
-    ]
-    return {"passages": passages,
-            "mode": "embeddings" if emb is not None else "tfidf_fallback"}
+
+    passages = []
+    if chunks:
+        if emb is not None:
+            import numpy as np
+            vecs = emb.encode([c["text"] for c in chunks], normalize_embeddings=True)
+            qv = emb.encode([query], normalize_embeddings=True)
+            scores = (np.asarray(vecs) @ np.asarray(qv).T).ravel()
+        else:
+            vec, mat = _tfidf()
+            scores = (mat @ vec.transform([query]).T).toarray().ravel()
+        top = sorted(zip(scores, chunks), key=lambda t: t[0], reverse=True)[:k]
+        passages = [
+            {"text": c["text"], "source": c["source"], "section": c["section"],
+             "score": round(float(s), 4)}
+            for s, c in top if s > 0.01
+        ]
+
+    # Retrieve curated operational SOPs from RAG vector store
+    from ..rag.sop_store import retrieve_sops
+    matched_sops = retrieve_sops(query, top_k=2)
+
+    evidence = []
+    for sop in matched_sops:
+        actions_str = "; ".join(sop["action_protocols"][:2])
+        evidence.append({
+            "agent": "rag",
+            "type": "disaster_sop",
+            "summary": f"[{sop['sop_id']}] {sop['title']} ({sop['authority']}): {actions_str}",
+            "confidence": sop["relevance_score"],
+            "sop_data": sop,
+        })
+
+    return {
+        "passages": passages,
+        "sops": matched_sops,
+        "evidence": evidence,
+        "mode": "embeddings" if emb is not None else "tfidf_fallback",
+    }
+

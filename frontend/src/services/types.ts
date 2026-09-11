@@ -1,6 +1,8 @@
-// Shared API types — mirrors backend §9.2/§9.3 response schemas.
-// (Hand-written rather than generated from the FastAPI OpenAPI schema;
-// swap to openapi-typescript later if drift becomes a problem.)
+/**
+ * Shared application types.
+ * AppState drives the entire UI state machine.
+ */
+export type AppState = "idle" | "analyzing" | "result" | "error";
 
 export interface ValidationReport {
   format: string;
@@ -78,6 +80,16 @@ export interface Artifact {
   url: string;
 }
 
+export interface SopEntry {
+  sop_id: string;
+  title: string;
+  authority: string;
+  domain: string;
+  trigger_condition: string;
+  action_protocols: string[];
+  relevance_score: number;
+}
+
 export interface QueryResult {
   job_id: string;
   answer: string;
@@ -91,10 +103,11 @@ export interface QueryResult {
   uncertainty: UncertaintyNote[];
   location: { type: string; features: GeoJSON.Feature[] };
   evidence: EvidenceEntry[];
+  rag_sops?: SopEntry[];
   execution_trace: TraceEvent[];
 }
 
-// Minimal GeoJSON typings (only what we consume)
+// Minimal GeoJSON typings
 declare namespace GeoJSON {
   interface Position extends Array<number> {}
   interface PolygonGeometry {

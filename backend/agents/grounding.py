@@ -170,20 +170,18 @@ def _dino_objects(det: dict, image: str, expression: str,
         })
 
     if objects:
-        # convert pixel boxes → WGS84 polygons via the affine transform
         data = graster.read_raster(image)
-        import geopandas as gpd
-        from shapely.geometry import mapping as geom_mapping
-        geoms = []
-        for o in objects:
-            x0, y0, x1, y1 = o["bbox_pixel"]
-            t = data["transform"]
-            corners = [t * (x0, y0), t * (x1, y0), t * (x1, y1), t * (x0, y1)]
-            geoms.append(shp_box(min(c[0] for c in corners), min(c[1] for c in corners),
-                                 max(c[0] for c in corners), max(c[1] for c in corners)))
-        gdf = gpd.GeoDataFrame(objects, geometry=geoms, crs=data["crs"]).to_crs(4326)
-        for o, geom in zip(objects, gdf.geometry):
-            o["geometry_wgs84"] = geom_mapping(geom)
+        boxes = [o["bbox_pixel"] for o in objects]
+        from ..geospatial.sam_segmenter import segment_boxes
+        sam_tuple, _ = loaders.load_sam_model()
+        seg_results = segment_boxes(
+            np.array(img), boxes, data["transform"], data["crs"], sam_model_tuple=sam_tuple
+        )
+        for o, seg in zip(objects, seg_results):
+            o["geometry_wgs84"] = seg.get("geometry_wgs84")
+            o["mask_type"] = seg.get("mask_type", "contour")
+            o["area_px"] = seg.get("area_px")
+
 
     return {"objects": objects, "note": None if objects else "no matching objects found",
             "mode": "grounding_dino", "confidence": 0.8 if objects else 0.4,

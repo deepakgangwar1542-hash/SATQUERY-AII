@@ -264,9 +264,9 @@ def gis_code_node(state: OrchestratorState) -> None:
     return out
 
 
-def rag_node(state: OrchestratorState) -> None:
-    out = rag_agent.retrieve(state["query"], k=3)
-    _succeed(state, "rag", out)
+def rag_node(state: OrchestratorState) -> dict:
+    return rag_agent.retrieve(state["query"], k=3)
+
 
 
 def evidence_aggregator_node(state: OrchestratorState) -> None:
@@ -338,6 +338,13 @@ def composer_node(state: OrchestratorState) -> None:
         if code_agent_out.get("generated_code"):
             features.extend((code_agent_out.get("geojson") or {}).get("features", []))
 
+        # Enrich answer with operational SOP guidance if matched
+        rag_sops = (outputs.get("rag") or {}).get("sops", [])
+        if rag_sops:
+            top_sop = rag_sops[0]
+            action_text = "; ".join(top_sop["action_protocols"][:2])
+            answer += f"\n\nOperational Guidance ({top_sop['authority']} - {top_sop['sop_id']}): {action_text}"
+
         display = {"gis_code": "gis_code_agent"}.get
         result = {
             "job_id": state["job_id"],
@@ -353,9 +360,11 @@ def composer_node(state: OrchestratorState) -> None:
             "uncertainty": state["uncertainty"],
             "location": {"type": "FeatureCollection", "features": features[:MAX_MAP_FEATURES]},
             "evidence": state["evidence"],
+            "rag_sops": rag_sops,
             "execution_trace": state["execution_trace"],
         }
         state["final"] = result
+
 
 
 # ---------------------------------------------------------------- graph ----

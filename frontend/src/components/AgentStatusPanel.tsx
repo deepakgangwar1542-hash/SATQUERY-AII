@@ -16,7 +16,9 @@ const AGENT_META: Record<string, { label: string; icon: string; role: string }> 
   change: { label: "ChangeNet (UNet)", icon: "🔄", role: "Bi-Temporal Siamese Differential" },
   verifier: { label: "Verifier & Synthesis", icon: "⚖️", role: "Consensus & Uncertainty Scoring" },
   gis_code: { label: "GIS Code Engine", icon: "💻", role: "Deterministic Python/Rasterio Execution" },
+  rag: { label: "Disaster SOP RAG", icon: "📋", role: "Curated Vector Knowledge Retrieval" },
 };
+
 
 const BADGE: Record<string, { bg: string; text: string; dot: string; pulse: boolean }> = {
   pending: { bg: "bg-slate-800/60 border-slate-700/50", text: "text-slate-400", dot: "bg-slate-500", pulse: false },

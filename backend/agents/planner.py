@@ -27,7 +27,10 @@ GROUNDING_TERMS = ("how many", "where", "find", "locate", "detect", "show me",
 NUMERIC_TERMS = ("percent", "%", "area", "km2", "km²", "how much", "threshold",
                  "more than", "less than", "greater", "statistics", "quantity")
 RAG_TERMS = ("ndvi", "ndwi", "sar", "backscatter", "sentinel", "geotiff",
-             "crs", "ndbi", "remote sensing", "multispectral", "co-registration")
+             "crs", "ndbi", "remote sensing", "multispectral", "co-registration",
+             "vegetation", "loss", "flood", "disaster", "sop", "protocol", "water",
+             "tank", "storage", "fire", "burn", "drought", "canopy", "decrease", "hazard")
+
 
 
 def _dates(assets: list[dict]) -> list[str]:

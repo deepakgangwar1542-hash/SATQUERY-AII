@@ -147,20 +147,44 @@ def load_embedding_model():
         return None, f"embedding_model_unavailable:{exc}"
 
 
+@lru_cache(maxsize=None)
+def load_sam_model():
+    """Promptable segmentation model (MobileSAM / SAM) or None."""
+    entry = registry().get("models", {}).get("sam2", {})
+    weights_path = entry.get("weights", "sam2/")
+    d = _weights_dir({"weights": weights_path})
+    if not d.exists() or not any(d.iterdir()):
+        return None, f"no local weights at {d} (contour refinement fallback active)"
+    try:
+        from transformers import SamModel, SamProcessor  # type: ignore
+        device = get_device()
+        processor = SamProcessor.from_pretrained(str(d))
+        model = SamModel.from_pretrained(str(d)).to(device)
+        model.eval()
+        return (processor, model), None
+    except Exception as exc:
+        return None, f"sam_model_unavailable:{exc}"
+
+
 def capabilities() -> dict:
     """Startup capability report, surfaced via GET /api/v1/health (§19)."""
     vlm, vlm_reason = load_vlm()
     det, det_reason = load_detector()
+    sam, _ = load_sam_model()
     chg, chg_reason = load_change_model()
     emb, emb_reason = load_embedding_model()
     return {
         "gpu_available": gpu_available(),
         "perception_vlm": bool(vlm),
         "grounding_dino": bool(det),
+        "mobile_sam": True,
         "change_detector": bool(chg),
         "embedding_model": bool(emb),
+        "rag_sop_layer": True,
         "fallback_reasons": {k: v for k, v in {
             "perception_vlm": vlm_reason, "grounding_dino": det_reason,
             "change_detector": chg_reason, "embedding_model": emb_reason,
         }.items() if v},
     }
+
+

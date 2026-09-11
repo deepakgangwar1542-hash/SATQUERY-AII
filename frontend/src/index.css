@@ -1,10 +1,36 @@
+/* ============================================================
+   SatQuery AI — Global Design System
+   Progressive disclosure, dark aerospace theme.
+   ============================================================ */
+
 @import "tailwindcss";
 
 @layer base {
   :root {
-    --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
-    --font-mono: 'JetBrains Mono', monospace;
-    --font-display: 'Space Grotesk', system-ui, sans-serif;
+    --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+    --font-display: "Space Grotesk", system-ui, sans-serif;
+
+    /* Spacing scale */
+    --sp-1: 4px;
+    --sp-2: 8px;
+    --sp-3: 12px;
+    --sp-4: 16px;
+    --sp-5: 20px;
+    --sp-6: 24px;
+    --sp-8: 32px;
+
+    /* Colors */
+    --bg-base: #020617;
+    --bg-surface: #0f172a;
+    --bg-elevated: #1e293b;
+    --border-subtle: rgba(51, 65, 85, 0.6);
+    --border-accent: rgba(56, 189, 248, 0.3);
+    --accent-cyan: #38bdf8;
+    --accent-indigo: #818cf8;
+    --text-primary: #f1f5f9;
+    --text-secondary: #94a3b8;
+    --text-muted: #475569;
   }
 }
 
@@ -17,10 +43,11 @@ body,
   padding: 0;
   overflow: hidden;
   font-family: var(--font-sans);
-  background-color: #020617;
+  background-color: var(--bg-base);
+  color: var(--text-primary);
 }
 
-/* Cesium globe absolute sizing overrides to prevent collapsed canvas */
+/* ============ Cesium Widget Overrides ============ */
 .cesium-viewer,
 .cesium-widget,
 .cesium-widget canvas {
@@ -36,14 +63,14 @@ body,
   overflow: hidden !important;
 }
 
-/* Custom aerospace scrollbars */
+/* ============ Scrollbar ============ */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
 }
 ::-webkit-scrollbar-thumb {
   background: #1e293b;
-  border-radius: 9999px;
+  border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
   background: #334155;
@@ -52,3 +79,72 @@ body,
   background: transparent;
 }
 
+/* ============ Glass Panel ============ */
+.glass {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-subtle);
+}
+
+.glass-bright {
+  background: rgba(30, 41, 59, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--border-accent);
+}
+
+/* ============ Animations ============ */
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(56, 189, 248, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(56, 189, 248, 0); }
+}
+
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes processing-step {
+  0%   { opacity: 0.4; }
+  50%  { opacity: 1; }
+  100% { opacity: 0.4; }
+}
+
+.animate-slide-up { animation: slide-up 0.3s ease-out both; }
+.animate-slide-right { animation: slide-in-right 0.3s ease-out both; }
+.animate-fade-in { animation: fade-in 0.25s ease-out both; }
+.animate-pulse-ring { animation: pulse-ring 2s infinite; }
+.animate-processing { animation: processing-step 1.5s ease-in-out infinite; }
+
+/* ============ Query Composer ============ */
+.query-input {
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  resize: none;
+  outline: none;
+  font-family: var(--font-sans);
+}
+
+.query-input::placeholder {
+  color: var(--text-muted);
+}
+
+/* ============ State Transition Classes ============ */
+.state-idle .analyzing-only { display: none; }
+.state-idle .result-only { display: none; }
+.state-analyzing .idle-only { display: none; }
+.state-analyzing .result-only { display: none; }
+.state-result .idle-only { display: none; }
+.state-result .analyzing-only { display: none; }
