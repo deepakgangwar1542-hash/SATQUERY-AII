@@ -23,17 +23,18 @@ commercial use. CI must fail if entries are missing for anything referenced in
 and a documented self-host swap point (`frontend/src/services/mapProvider.ts`,
 PRD §11.4). No ion token ships with this repo.
 
-## Model checkpoints (none currently fetched — fallbacks active)
+## Model checkpoints
 
 `scripts/fetch_models.sh` downloads on demand; the repo itself ships NO
-third-party weights. If you fetch:
+third-party weights in git. Fetched into this sandbox's local
+`models/checkpoints/` (gitignored) and verified 2026-09-11:
 
 | Checkpoint | Upstream license (at time of writing) | Verified? |
 |---|---|---|
-| IDEA-Research/grounding-dino-tiny | Apache-2.0 | ☐ re-check model card |
-| facebook/sam2-hiera-small | Apache-2.0 | ☐ re-check model card |
-| sentence-transformers/all-MiniLM-L6-v2 | Apache-2.0 | ☐ re-check model card |
-| Perception VLM (Prithvi-EO family or chosen Apache-2.0 VLM) | Apache-2.0 (claimed) | ☐ re-check model card |
+| IDEA-Research/grounding-dino-tiny | Apache-2.0 | ✓ confirmed on HF model card, 2026-09-11 |
+| facebook/sam2-hiera-small | Apache-2.0 | ✓ confirmed on HF model card, 2026-09-11 |
+| sentence-transformers/all-MiniLM-L6-v2 | Apache-2.0 | ✓ confirmed on HF model card, 2026-09-11 |
+| Perception VLM (Prithvi-EO family or chosen Apache-2.0 VLM) | Apache-2.0 (claimed) | ☐ NOT fetched — multi-GB gated geospatial foundation model; `heuristic_scene_analyzer` fallback (now augmented by the optional xAI/Grok answer-composition pass in `services/llm_client.py`) remains the serving path. Re-check model card and fetch before relying on real VLM outputs. |
 | bigearthnet_module fusion_model.joblik | trained in-house, sklearn | ✓ (no upstream weights) |
 
 In-house checkpoints trained on **synthetic** data carry no upstream license
