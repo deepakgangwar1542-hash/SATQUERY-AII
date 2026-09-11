@@ -22,7 +22,7 @@ import { DataDrawer } from "../components/DataDrawer";
 import { GlobeWorkspace } from "../components/GlobeWorkspace";
 import { QueryComposer } from "../components/QueryComposer";
 import { AnalysisOverlay } from "../components/AnalysisOverlay";
-import { AIAnswerPanel } from "../components/AIAnswerPanel";
+import { ResultAnswerView } from "../components/ResultAnswerView";
 import { AgentPipelineBar } from "../components/AgentPipelineBar";
 import { EvidenceLens } from "../components/EvidenceLens";
 
@@ -422,11 +422,12 @@ export default function MissionControl() {
           </div>
         )}
 
-        {/* ── RESULT: Right side AI answer panel ────── */}
+        {/* ── RESULT: Right side result view ────────── */}
         {appState === "result" && result && (
-          <div className="w-80 shrink-0 z-20 overflow-hidden animate-slide-right">
-            <AIAnswerPanel
+          <div className="w-[22rem] shrink-0 z-20 overflow-hidden animate-slide-right">
+            <ResultAnswerView
               result={result}
+              question={question}
               onHighlightEvidence={handleHighlightEvidence}
               onOpenEvidenceLens={(claim) => {
                 setSelectedClaim(claim || null);
