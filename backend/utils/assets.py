@@ -41,6 +41,15 @@ def resolve_asset_paths(assets: list[dict]) -> dict[str, str]:
     for a in assets:
         aid = a.get("asset_id")
         rec = get_asset(aid) if aid else None
-        if rec and os.path.exists(rec["path"]):
-            out[aid] = rec["path"]
+        if rec:
+            raw_path = rec.get("path", "")
+            p = Path(raw_path)
+            if not p.exists():
+                p = UPLOADS_DIR / f"{aid}.tif"
+            if not p.exists():
+                # check if stored relative to repo
+                p = Path(__file__).resolve().parent.parent.parent / raw_path
+            if p.exists():
+                out[aid] = str(p.resolve())
     return out
+

@@ -19,32 +19,57 @@ const VERDICT_STYLE: Record<string, string> = {
   CONFLICTING: "bg-red-900/60 text-red-300 border-red-700",
 };
 
-/** §12.4 confidence breakdown as labeled bars — not a single number. */
 export function ConfidencePanel({ confidence, breakdown, verdict }: Props) {
   const pct = Math.round(confidence * 100);
+  const isHigh = pct >= 80;
+  const isMed = pct >= 50 && pct < 80;
+
   return (
-    <div className="space-y-2">
-      <div className="flex items-baseline justify-between">
-        <span className="text-2xl font-semibold text-sky-300">{pct}%</span>
-        <span className={`rounded border px-1.5 py-0.5 text-[10px] font-medium ${
-          VERDICT_STYLE[verdict] ?? VERDICT_STYLE.PARTIALLY_CONSISTENT}`}>
+    <div className="rounded-xl border border-slate-800/80 bg-slate-900/50 p-3.5 backdrop-blur-md space-y-3">
+      <div className="flex items-center justify-between border-b border-slate-800/60 pb-2">
+        <div>
+          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+            Multimodal Confidence
+          </span>
+          <div className="flex items-baseline gap-1.5 mt-0.5">
+            <span className={`text-2xl font-bold font-mono ${
+              isHigh ? "text-emerald-400" : isMed ? "text-sky-400" : "text-amber-400"
+            }`}>
+              {pct}%
+            </span>
+            <span className="text-[10px] text-slate-400">weighted score</span>
+          </div>
+        </div>
+
+        <span className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
+          VERDICT_STYLE[verdict] ?? VERDICT_STYLE.PARTIALLY_CONSISTENT
+        }`}>
           {verdict.replace("_", " ")}
         </span>
       </div>
-      <div className="space-y-1.5">
-        {Object.entries(breakdown).map(([k, v]) => (
-          <div key={k}>
-            <div className="flex justify-between text-[10px] text-slate-400">
-              <span>{LABELS[k] ?? k}</span>
-              <span>{(v * 100).toFixed(0)}%</span>
+
+      <div className="space-y-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 block">
+          Component Breakdown
+        </span>
+        <div className="space-y-1.5">
+          {Object.entries(breakdown).map(([k, v]) => (
+            <div key={k} className="space-y-0.5">
+              <div className="flex justify-between text-[10px]">
+                <span className="text-slate-300 font-medium">{LABELS[k] ?? k}</span>
+                <span className="font-mono text-slate-400">{(v * 100).toFixed(0)}%</span>
+              </div>
+              <div className="h-1.5 overflow-hidden rounded-full bg-slate-800 ring-1 ring-slate-700/30">
+                <div
+                  className="h-full rounded-full bg-gradient-to-r from-sky-500 to-emerald-400 transition-all duration-300"
+                  style={{ width: `${Math.max(3, Math.min(100, v * 100))}%` }}
+                />
+              </div>
             </div>
-            <div className="h-1 overflow-hidden rounded bg-slate-800">
-              <div className="h-full rounded bg-gradient-to-r from-sky-600 to-emerald-500"
-                style={{ width: `${Math.max(2, Math.min(100, v * 100))}%` }} />
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
 }
+
