@@ -1,9 +1,22 @@
 """Deterministic planner — implements the §12.2 branch-selection rules (FR-9 AC2).
 
-Same query → same plan, always: keyword rules first; no LLM in the planning
-path so demos cannot be flaky.
+Same query → same plan, always: keyword rules first; no LLM in the
+plan-selection path itself, so demos cannot be flaky. `build_plan()` and
+`plan_rationale()` are pure/deterministic and unchanged. `narrate_plan()` is
+a separate, optional enhancement: it turns the already-decided plan into a
+one-sentence human explanation via xAI when `XAI_API_KEY` is configured.
+It never influences which agents run — only the text shown to the user.
 """
 from __future__ import annotations
+
+from ..services import llm_client
+
+_LLM_SYSTEM_PROMPT = (
+    "You explain, in one plain sentence, why a fixed list of analysis "
+    "agents was chosen for a satellite-imagery question. You are given the "
+    "already-decided agent list and the rule-based rationale that produced "
+    "it. Do not suggest a different plan or add agents not listed."
+)
 
 CHANGE_TERMS = ("change", "between", "difference", "compare", "decrease",
                 "increase", "drop", "gain", "loss", "flood", "new", "built",
@@ -62,3 +75,14 @@ def plan_rationale(query: str, assets: list[dict]) -> dict:
         "numeric_terms": [t for t in NUMERIC_TERMS if t in q],
         "domain_terms": [t for t in RAG_TERMS if t in q],
     }
+
+
+def narrate_plan(query: str, plan: list[str], rationale: dict) -> str | None:
+    """Optional one-sentence LLM narration of an already-decided plan.
+    Returns None (never a placeholder string) when `XAI_API_KEY` is unset or
+    the call fails — callers must treat None as "no narration available"."""
+    if not llm_client.is_available():
+        return None
+    user_prompt = (f"Question: {query!r}\nChosen agent plan (fixed, in order): {plan}\n"
+                  f"Rule-based rationale: {rationale}")
+    return llm_client.complete(_LLM_SYSTEM_PROMPT, user_prompt, max_tokens=120)

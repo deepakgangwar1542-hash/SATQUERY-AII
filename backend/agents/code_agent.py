@@ -3,11 +3,15 @@
 v1 generation strategy (deterministic, demo-safe): for each approved intent a
 pre-audited template produces the full Python source; parameters (thresholds,
 band mappings, asset paths) are injected as `input/params.json`, never by
-string-substitution into code. An LLM-backed generator can be added behind
-`generate_with_llm()` — it MUST pass the same AST validator (FR-12 AC2) and
-the §12.3 regeneration rule (validator reason appended to the prompt) before
-execution. The exact source executed is always returned to the client
-(FR-12 AC4).
+string-substitution into code. An LLM-backed generator is available behind
+`generate_with_llm()` for queries that don't match an approved template — it
+MUST pass the same AST validator (FR-12 AC2) and the §12.3 regeneration rule
+(validator reason appended to the prompt, one retry) before execution. The
+exact source executed is always returned to the client (FR-12 AC4), and the
+LLM path is never used silently: `execute_analysis()` only calls it when
+`choose_intent()` found no template match, and only when `XAI_API_KEY` is
+configured — otherwise the caller gets the existing "no approved template"
+error, unchanged.
 """
 from __future__ import annotations
 
@@ -15,6 +19,7 @@ from pathlib import Path
 
 from ..sandbox import runner
 from ..sandbox.validator import validate_code
+from ..services import llm_client
 
 TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "sandbox" / "templates"
 
@@ -23,6 +28,43 @@ INTENT_PARAMS = {
     "ndwi_change": {"requires": 2, "kind": "optical"},
     "area_stats": {"requires": 1, "kind": "optical"},
 }
+
+_LLM_SYSTEM_PROMPT = (
+    "You write short, self-contained Python scripts for a sandboxed "
+    "geospatial analysis runner. The script reads raster paths and "
+    "parameters from a JSON file at input/params.json (already written for "
+    "you; do not write to it), performs the requested raster analysis using "
+    "only rasterio/numpy/shapely/geopandas/pyproj, and writes its result to "
+    "output/result.json (a small JSON-serializable dict of scalar "
+    "statistics) and optionally output/output.geojson (a GeoJSON "
+    "FeatureCollection in EPSG:4326). Rules: no network access, no "
+    "subprocess/os.system/eval/exec, no imports outside the allowed "
+    "scientific-Python stack, no reads/writes outside input/ and output/. "
+    "Return ONLY the raw Python source code, no markdown fences, no "
+    "explanation."
+)
+
+
+def generate_with_llm(query: str, params: dict, retry_reasons: list[str] | None = None) -> dict | None:
+    """LLM-backed fallback code generation for queries with no matching
+    template. Returns {source, params, template} or None if the LLM is
+    unavailable, fails, or its output does not pass static validation after
+    one regeneration attempt (§12.3)."""
+    if not llm_client.is_available():
+        return None
+    user_prompt = f"User question: {query!r}\nAvailable input params (JSON): {params!r}"
+    if retry_reasons:
+        user_prompt += (f"\n\nYour previous attempt was rejected by static validation "
+                        f"for these reasons: {retry_reasons}. Fix them and try again.")
+    source = llm_client.complete(_LLM_SYSTEM_PROMPT, user_prompt, max_tokens=1200)
+    if not source:
+        return None
+    reasons = validate_code(source, allowed_open_dirs=["input", "output"])
+    if reasons:
+        if retry_reasons:  # already retried once; give up (§12.3: one retry)
+            return None
+        return generate_with_llm(query, params, retry_reasons=reasons)
+    return {"source": source, "params": params, "template": "llm_generated"}
 
 
 def choose_intent(query: str, n_assets: int) -> str | None:
@@ -36,10 +78,17 @@ def choose_intent(query: str, n_assets: int) -> str | None:
     return "area_stats" if n_assets >= 1 else None
 
 
-def generate_analysis_code(intent: str, params: dict) -> dict:
-    """Return {source, params, template}. Raises on unknown intent."""
+def generate_analysis_code(intent: str, params: dict, query: str | None = None) -> dict:
+    """Return {source, params, template}. Falls back to `generate_with_llm()`
+    when `intent` has no approved template and a `query` string is given
+    (only reachable when `XAI_API_KEY` is configured); otherwise raises, same
+    as before."""
     template_path = TEMPLATES_DIR / f"{intent}.py"
     if intent not in INTENT_PARAMS or not template_path.exists():
+        if query is not None:
+            llm_gen = generate_with_llm(query, params)
+            if llm_gen is not None:
+                return llm_gen
         raise ValueError(
             f"intent '{intent}' has no approved template. v1 supports: "
             f"{sorted(INTENT_PARAMS)}. "
@@ -53,17 +102,20 @@ def generate_analysis_code(intent: str, params: dict) -> dict:
 
 
 def execute_analysis(intent: str, params: dict, asset_paths: list[str],
-                     timeout_s: int = runner.DEFAULT_TIMEOUT_S) -> dict:
+                     timeout_s: int = runner.DEFAULT_TIMEOUT_S,
+                     query: str | None = None) -> dict:
     """Generate + sandbox-execute. Returns {generated_code, result, sandbox_log}."""
-    gen = generate_analysis_code(intent, params)
+    gen = generate_analysis_code(intent, params, query=query)
     run = runner.run_sandboxed(gen["source"], asset_paths, params=gen["params"],
                                timeout_s=timeout_s)
     # §12.3 recovery: on static-validation failure regenerate once with the
-    # rejection reasons recorded (templates always pass; the hook is here for
-    # a future LLM generator).
+    # rejection reasons recorded. Templates always pass; for the LLM path
+    # `generate_with_llm()` already retries once internally, so this covers
+    # the template branch's contract unchanged.
     if not run["ok"] and run["validation_reasons"]:
         gen = generate_analysis_code(intent, {**params,
-                                              "validator_rejections": run["validation_reasons"]})
+                                              "validator_rejections": run["validation_reasons"]},
+                                     query=query)
         run = runner.run_sandboxed(gen["source"], asset_paths, params=gen["params"],
                                    timeout_s=timeout_s)
     return {

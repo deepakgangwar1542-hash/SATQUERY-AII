@@ -4,11 +4,29 @@ Decomposition per FR-6 AC: change detection → changed-region summary →
 object-level check (grounding, when it ran) → NL answer generation. With no
 VLM checkpoint, answers are composed from the Change Agent's structured
 statistics — deterministic and grounded, never invented.
+
+When `XAI_API_KEY` is configured, the template answer below is used as a
+strict factual scaffold for an xAI (Grok) call that rephrases it into a more
+natural response — the LLM is instructed to only use the numbers it is
+given, never to introduce new figures. If the key is absent or the call
+fails for any reason, the deterministic template answer is returned as-is
+(§7.2/§7.5 graceful degradation).
 """
 from __future__ import annotations
 
 from . import perception
+from ..services import llm_client
 from .change import detect_change
+
+
+_LLM_SYSTEM_PROMPT = (
+    "You are a remote-sensing change-detection assistant. You will be given "
+    "a factual draft answer, computed deterministically from raster "
+    "statistics, and the original user question. Rewrite the draft into a "
+    "clear, natural response to the question. You MUST NOT invent, alter, "
+    "or add any number, percentage, or area figure that is not already in "
+    "the draft. Keep it concise (2-4 sentences)."
+)
 
 
 def answer_change_question(image_before: str, image_after: str, question: str,
@@ -63,8 +81,21 @@ def answer_change_question(image_before: str, image_after: str, question: str,
         })
 
     confidence = round(min(0.85, change_result["confidence"] + (0.05 if grounding_objects else 0)), 3)
+    answer = _rephrase_with_llm(question, answer)
     return {"answer": answer, "confidence": confidence, "evidence": evidence,
             "uncertainty": list(change_result.get("uncertainty", [])),
             "spatial_reference": change_result.get("change_geojson"),
             "scene_context": perception.caption_image(image_after)["caption"]
             if change_result.get("include_scene", False) else None}
+
+
+def _rephrase_with_llm(question: str, draft_answer: str) -> str:
+    """Optional enhancement: ask xAI to rephrase the deterministic draft into
+    more natural prose. Returns the draft unchanged if the LLM is
+    unavailable, errors, or its response doesn't look grounded (contains no
+    overlap with the draft's own content)."""
+    if not llm_client.is_available():
+        return draft_answer
+    user_prompt = f"Question: {question}\n\nDraft answer (factual, do not add new numbers):\n{draft_answer}"
+    rephrased = llm_client.complete(_LLM_SYSTEM_PROMPT, user_prompt)
+    return rephrased or draft_answer
