@@ -72,6 +72,34 @@ as capability figures. Re-run on a real BigEarthNet subset for reportable
 numbers (SAR-only landing far below optical/fusion is, however, directionally
 consistent with real-data behavior).
 
+## Real-data retraining attempt (2026-09-11)
+
+We attempted to source a small real BigEarthNet v2.0 slice (paired S1+S2
+patches + labels) to retrain via `--source bigearthnet` in this sandbox and
+hit a hard wall, documented here instead of silently staying on synthetic:
+
+- The official archive is a multi-hundred-GB download gated behind
+  registration at bigearth.net — not fetchable in a sandboxed session.
+- Script-based Hugging Face mirrors (`datasets.load_dataset(..., streaming=True)`
+  for BigEarthNet-adjacent repos) failed under the installed `datasets`
+  library version; LMDB/parquet mirrors that avoid the loader script require
+  a manual conversion step this sandbox couldn't complete reliably in a small
+  time budget.
+- Unlike LEVIR-CD+/VRSBench/RSVQA (see `scripts/eval/fetch_real_subsets.py`
+  and `scripts/eval/results/eval_*_real.json`), there was no lightweight
+  paired optical+SAR+label mirror we could pull as a 10-20 patch smoke slice.
+
+**Net effect:** the fusion model checkpoint and `outputs/metrics.json` in
+this repo remain the synthetic-subset run above — clearly labeled as
+plumbing-validation, not benchmark numbers, per PRD §17. Real optical-vs-SAR
+adaptation numbers for change detection specifically DO exist and are real
+(see `scripts/eval/results/eval_levir_cd_real.json`, 12 real LEVIR-CD+ pairs)
+— that is the honest real-data signal this project currently has for the
+multimodal path. To close this gap for real: download the BigEarthNet
+archive outside a sandboxed environment (a machine with the bandwidth/disk
+for the full or a curated official subset) and run
+`python bigearthnet_module/src/train.py --source bigearthnet --n 500` there.
+
 ## Backend wiring (optional)
 
 To serve this module's predictions from the multimodal agent, the loader in

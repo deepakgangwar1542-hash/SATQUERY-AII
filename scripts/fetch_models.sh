@@ -13,11 +13,12 @@ set -euo pipefail
 CKPT_DIR="$(dirname "$0")/../models/checkpoints"
 mkdir -p "$CKPT_DIR"
 
-python - <<'EOF'
+CKPT_DIR="$(cd "$CKPT_DIR" && pwd)"
+CKPT_DIR="$CKPT_DIR" python - <<'EOF'
 from huggingface_hub import snapshot_download
 import os
 
-root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "models", "checkpoints")
+root = os.environ["CKPT_DIR"]
 
 targets = [
     # (hf_id, local subdir, note)

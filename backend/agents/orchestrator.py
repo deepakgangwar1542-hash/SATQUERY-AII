@@ -20,7 +20,7 @@ from . import perception as perception_agent
 from . import rag as rag_agent
 from . import verifier as verifier_mod
 from .graph import Graph
-from .planner import build_plan, plan_rationale
+from .planner import build_plan, narrate_plan, plan_rationale
 from .trace import traced
 
 log = logging.getLogger("satquery.orchestrator")
@@ -98,6 +98,11 @@ def planner_node(state: OrchestratorState) -> None:
     with traced(state["job_id"], "orchestrator", "plan", sink=state["execution_trace"]):
         state["plan"] = build_plan(state["query"], state["assets"])
         state["plan_rationale"] = plan_rationale(state["query"], state["assets"])
+        # Optional LLM narration (§ xAI enhancement): purely explanatory,
+        # never influences `state["plan"]` itself. None when XAI_API_KEY is
+        # unset or the call fails.
+        state["plan_rationale"]["narrative"] = narrate_plan(
+            state["query"], state["plan"], state["plan_rationale"])
         state["dates"] = sorted({a.get("capture_date") for a in state["assets"]
                                  if a.get("capture_date")})
 
@@ -244,7 +249,8 @@ def gis_code_node(state: OrchestratorState) -> None:
     file_params["band_mapping"] = mappings.get(ordered[0]["asset_id"]) or {}
     file_params["threshold_pct"] = -20.0
     out = code_agent_mod.execute_analysis(
-        intent, file_params, [paths[a["asset_id"]] for a in ordered])
+        intent, file_params, [paths[a["asset_id"]] for a in ordered],
+        query=state["query"])
     if out["geojson"]:
         url = artifact_store.save_json(state["job_id"], out["geojson"], "analysis.geojson")
         state["artifacts"].append({"type": "geojson", "name": "analysis.geojson", "url": url})

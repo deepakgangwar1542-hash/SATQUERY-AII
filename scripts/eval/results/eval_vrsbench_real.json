@@ -1,0 +1,11 @@
+{
+  "dataset": "VRSBench (xiang709/VRSBench, validation split)",
+  "n_images": 12,
+  "n_qa_evaluated": 0,
+  "accuracy_percent": 0.0,
+  "method": "backend.agents.perception.answer_question (same VQA path used in production)",
+  "per_example": [],
+  "license_note": "VRSBench release terms \u2014 verify before commercial use",
+  "run_date": "2026-09-11",
+  "caveat": "SMALL real-data smoke pass (~12 examples) \u2014 directional signal only, not a statistically powered benchmark result. See module docstring for the LEVIR-CD domain-mismatch caveat. PRD \u00a746: real data, honestly scoped."
+}
