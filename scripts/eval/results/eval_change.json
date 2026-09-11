@@ -1,0 +1,19 @@
+{
+  "metrics": {
+    "IoU": 0.379,
+    "F1": 0.5497,
+    "precision": 0.379,
+    "recall": 1.0
+  },
+  "script": "scripts/eval/eval_change.py",
+  "data": "datasets/samples synthetic bi-temporal pair with known change patch",
+  "method": {
+    "threshold_pct": -20.0,
+    "min_magnitude_guard": 0.05,
+    "formula": "relative decrease = (before - after) / (|before| + eps) (PRD \u00a710.2)",
+    "crs": "EPSG:32643",
+    "footprint_iou": 1.0
+  },
+  "run_date": "2026-09-11",
+  "caveat": "synthetic-pair smoke metrics \u2014 evaluate on LEVIR-CD held-out split for reportable benchmark figures (PRD \u00a717)"
+}

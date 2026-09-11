@@ -1,0 +1,3 @@
+# SatQuery AI root dev requirements (backend + tooling)
+-r backend/requirements.txt
+ruff>=0.4

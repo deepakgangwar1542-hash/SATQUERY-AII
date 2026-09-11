@@ -1,0 +1,35 @@
+# SatQuery AI — full stack (PRD §19).
+# CPU-only by default. GPU mode: install nvidia-container-toolkit, uncomment
+# the deploy block, and build the backend with a CUDA torch variant
+# (requirements-ml.txt + pytorch index-url) — /health reports gpu_available.
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8000:8000"
+    volumes:
+      - satquery_data:/data
+      - ./models/checkpoints:/checkpoints   # read-only model weights mount
+      - ./datasets:/datasets:ro
+    environment:
+      - SATQUERY_DATA_DIR=/data
+      - SATQUERY_CHECKPOINT_DIR=/checkpoints
+    restart: unless-stopped
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      - backend
+    ports:
+      - "5173:80"
+    restart: unless-stopped
+
+volumes:
+  satquery_data:

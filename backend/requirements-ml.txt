@@ -1,0 +1,16 @@
+# SatQuery AI — OPTIONAL heavy ML extras.
+# Install only if you want real model inference instead of the built-in
+# deterministic fallbacks. Each loader in backend/models/loaders.py probes
+# for these at startup and falls back cleanly (never crashes) when missing.
+#
+#   pip install -r backend/requirements-ml.txt
+#
+# PyTorch: pick the wheel matching your platform/CUDA from https://pytorch.org
+#   CPU-only:  pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+#   CUDA 12.1: pip install torch torchvision --index-url https://download.pytorch.org/whl/cu121
+torch>=2.2
+torchvision>=0.17
+transformers>=4.40
+sentence-transformers>=2.6
+faiss-cpu>=1.8; platform_system != "Windows" or python_version < "3.13"
+# langgraph>=0.2   # optional orchestrator engine swap; see backend/agents/graph.py

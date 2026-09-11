@@ -1,0 +1,16 @@
+{
+  "run_at": "2026-09-11T08:04:37.677930+00:00",
+  "source": "synthetic",
+  "train": {
+    "train_accuracy": 1.0,
+    "n": 675
+  },
+  "val": {
+    "zero_shot_ndvi_heuristic": 1.0,
+    "adapted_optical_only": 1.0,
+    "adapted_sar_only": 0.64,
+    "adapted_fusion": 1.0
+  },
+  "checkpoint": "E:\\SATTTT\\bigearthnet_module\\checkpoints\\fusion_model.joblib",
+  "note": "synthetic-subset smoke metrics \u2014 NOT benchmark numbers; re-run with --source bigearthnet on a real download for reportable figures (PRD \u00a717)"
+}

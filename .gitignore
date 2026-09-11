@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+
+# Runtime data (jobs, artifacts, uploads)
+backend/data/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Models / datasets (fetched at setup, never committed)
+models/checkpoints/*
+!models/checkpoints/README.md
+bigearthnet_module/checkpoints/*
+bigearthnet_module/data/*
+bigearthnet_module/outputs/*
+!bigearthnet_module/outputs/metrics.json
+datasets/*
+!datasets/LICENSES.md
+!datasets/README.md
+!datasets/samples/
+
+# Env / IDE
+.env
+.env.*
+.idea/
+.vscode/
+*.log

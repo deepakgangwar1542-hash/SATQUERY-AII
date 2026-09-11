@@ -1,0 +1,56 @@
+# SatQuery AI model registry — PRD §13.1/§14.
+# Every checkpoint the backend can load is declared here with its provenance
+# and license. `license_verified` MUST be true (after human re-check of the
+# upstream LICENSE/model card, PRD §14.4) before anything beyond a local demo.
+# Missing checkpoints never crash the backend: loaders degrade to fallbacks.
+#
+# base_dir is resolved relative to the repository root.
+base_dir: models/checkpoints
+
+models:
+  perception_vlm:
+    role: single-image VQA + captioning (FR-2, FR-3)
+    engine: transformers
+    # Apache-2.0 geospatial foundation model (verify the HF model card, §14.2)
+    hf_id: nasa-cisto-data-science-group/satlasprithvi-swin-b   # Prithvi-EO family
+    weights: prithvi/                                          # subdir under base_dir
+    license: apache-2.0
+    license_verified: false
+    fallback: heuristic_scene_analyzer
+
+  grounding_dino:
+    role: text-conditioned detection (FR-4)
+    engine: transformers   # IDEA-Research/grounding-dino-tiny via transformers
+    hf_id: IDEA-Research/grounding-dino-tiny
+    weights: grounding_dino/
+    license: apache-2.0
+    license_verified: false
+    fallback: index_threshold_segmenter
+
+  sam2:
+    role: promptable segmentation (FR-4)
+    engine: transformers   # facebook/sam2-hiera-small via transformers
+    hf_id: facebook/sam2-hiera-small
+    weights: sam2/
+    license: apache-2.0
+    license_verified: false
+    fallback: none   # grounding falls back to polygon masks directly
+
+  change_detector:
+    role: bi-temporal change detection (FR-5)
+    engine: torch   # in-house Siamese U-Net trained on LEVIR-CD (research-only
+                    # dataset → local training only; the ARCHITECTURE carries no
+                    # license constraint, PRD §14.2)
+    weights: change_detector/siamese_unet_levircd.pt
+    license: model-weights-trained-in-house
+    license_verified: true
+    fallback: index_delta_change   # deterministic NDVI/NDWI-delta method
+
+  embedding_model:
+    role: RAG embeddings (FR-13)
+    engine: sentence-transformers
+    hf_id: sentence-transformers/all-MiniLM-L6-v2   # Apache-2.0
+    weights: embeddings/
+    license: apache-2.0
+    license_verified: false
+    fallback: tfidf_retrieval

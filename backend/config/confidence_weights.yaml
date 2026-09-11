@@ -1,0 +1,13 @@
+# Final confidence weights — PRD §12.4. Single source of truth; the verifier
+# loads this file at import time. Constraints: each weight >= 0, sum == 1.
+model_confidence: 0.25
+evidence_agreement: 0.25
+sensor_reliability: 0.15
+data_quality: 0.15
+spatial_consistency: 0.10
+temporal_consistency: 0.10
+
+# Verifier verdict thresholds on evidence_agreement.
+verdict_thresholds:
+  consistent: 0.75
+  partially_consistent: 0.45

@@ -1,0 +1,11 @@
+{
+  "accuracy_percent": {
+    "optical_only": 100.0,
+    "sar_only": 66.67,
+    "fusion": 100.0
+  },
+  "script": "scripts/eval/ablation_fusion.py",
+  "data_split": "synthetic: 225 held-out patches of 900",
+  "run_date": "2026-09-11",
+  "caveat": "synthetic-subset smoke metrics \u2014 NOT benchmark figures; re-run with --source bigearthnet on a real download before quoting any number (PRD \u00a717)"
+}
