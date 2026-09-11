@@ -612,6 +612,7 @@ def composer_node(state: OrchestratorState) -> None:
         result = {
             "job_id": state["job_id"],
             "query": state["query"],
+            "earthquery_spec": state.get("earthquery_spec", {}),
             "query_understanding": state.get("query_understanding", {}),
             "investigation": state.get("investigation_plan", {}),
             "sensor_selection": state.get("sensor_selection", {}),

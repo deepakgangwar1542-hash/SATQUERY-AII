@@ -18,6 +18,8 @@
 import React, { useState } from "react";
 import type { QueryResult, Claim } from "../services/types";
 import { CodePanel } from "./CodePanel";
+import { ConfidencePanel } from "./ConfidencePanel";
+import { EvidenceProvenanceGraph } from "./EvidenceProvenanceGraph";
 import * as api from "../services/api";
 
 interface Props {
@@ -115,7 +117,7 @@ export function ResultAnswerView({
   onSelectQuestion,
   onHighlightEvidence,
 }: Props) {
-  type Sec = "claims" | "uncertainty" | "sops" | "code" | "reasoning" | null;
+  type Sec = "claims" | "uncertainty" | "sops" | "code" | "reasoning" | "reason" | null;
   const [openSec, setOpenSec] = useState<Sec>(null);
   const [activeTab, setActiveTab] = useState<"answer" | "export">("answer");
   const toggle = (s: Sec) => setOpenSec((p) => (p === s ? null : s));
@@ -295,6 +297,79 @@ export function ResultAnswerView({
                 )}
               </div>
             </div>
+          </div>
+
+          {/* 5b. Reasoning: how the query was understood + confidence + provenance */}
+          <div className="px-4 py-2 border-b border-slate-800/40">
+            <button
+              onClick={() => toggle("reason")}
+              className="w-full flex items-center justify-between py-1.5 text-left cursor-pointer group"
+            >
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-slate-200 transition-colors">
+                Reasoning &amp; Confidence
+              </span>
+              <span className="text-slate-500 text-xs">{openSec === "reason" ? "▴" : "▾"}</span>
+            </button>
+            {openSec === "reason" && (
+              <div className="space-y-3 pb-2 animate-slide-up">
+                {/* How the query was understood */}
+                {result.query_understanding && (
+                  <div className="rounded-xl border border-slate-800/80 bg-slate-900/50 p-3.5 space-y-1.5">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block">
+                      How the query was understood
+                    </span>
+                    <p className="text-xs text-slate-200 leading-relaxed">
+                      {result.query_understanding.summary}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 pt-0.5">
+                      <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-sky-950 border border-sky-700/60 text-sky-300">
+                        intent: {result.query_understanding.intent}
+                      </span>
+                      {result.query_understanding.phenomenon && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                          phenomenon: {result.query_understanding.phenomenon}
+                        </span>
+                      )}
+                      {result.query_understanding.temporal && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                          temporal
+                        </span>
+                      )}
+                      {result.query_understanding.requires_sar && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                          SAR
+                        </span>
+                      )}
+                      {result.query_understanding.requires_change_detection && (
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-slate-300">
+                          change-detection
+                        </span>
+                      )}
+                    </div>
+                    {result.sensor_selection?.reason && (
+                      <p className="text-[10px] text-slate-500 leading-relaxed pt-1">
+                        Sensor choice: {result.sensor_selection.reason}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {/* 6-component confidence breakdown */}
+                {result.confidence_breakdown &&
+                  Object.keys(result.confidence_breakdown).length > 0 && (
+                    <ConfidencePanel
+                      confidence={result.confidence}
+                      breakdown={result.confidence_breakdown}
+                      verdict={result.consistency_verdict}
+                    />
+                  )}
+
+                {/* Clickable execution provenance chain */}
+                {result.execution_trace.length > 0 && (
+                  <EvidenceProvenanceGraph result={result} />
+                )}
+              </div>
+            )}
           </div>
 
           {/* 6. Claims (collapsible) */}

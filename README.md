@@ -10,6 +10,8 @@
 
 Instead of brittle keyword dispatching, SatQuery compiles user queries into structured investigation specifications, dynamically selects sensors based on atmospheric and task conditions, coordinates specialist neural and radar models, computes spatial metrics deterministically via sandboxed GIS, verifies evidence consistency, and provides interactive visual proof through an **Evidence Lens** and **Provenance Graph**.
 
+Queries can be typed or **spoken** (browser Web Speech API). Every result surfaces *how* the query was interpreted (the compiled `earthquery_spec` and query understanding), a **6-component confidence breakdown**, and a **clickable execution-provenance chain** built from the real agent trace — no step or number is fabricated.
+
 ---
 
 ## 1. Product Philosophy & Core Architecture

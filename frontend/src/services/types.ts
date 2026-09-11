@@ -148,6 +148,7 @@ export interface HypothesisItem {
 export interface QueryResult {
   job_id: string;
   query?: string;
+  earthquery_spec?: Record<string, unknown>;
   query_understanding?: QueryUnderstanding;
   investigation?: InvestigationPlan;
   sensor_selection?: SensorSelection;
