@@ -1,0 +1,83 @@
+{
+  "dataset": "RSVQA-LR (dmarsili/RSVQA-LR-2k, unofficial mirror)",
+  "n_examples": 12,
+  "accuracy_percent": 0.0,
+  "method": "backend.agents.perception.answer_question (same VQA path used in production)",
+  "per_example": [
+    {
+      "question": "Is it a rural or an urban area",
+      "gt": "rural",
+      "pred": "Optical scene (band semantics unresolved; supply a band mapping for index-based description).",
+      "correct": false
+    },
+    {
+      "question": "What is the number of commercial buildings?",
+      "gt": "5",
+      "pred": "Scene statistics unavailable (no band mapping resolved).",
+      "correct": false
+    },
+    {
+      "question": "How many farmlands are there?",
+      "gt": "62",
+      "pred": "Object counting requires the grounding agent; this scene-level answer cannot reliably count objects. Run a region-specific query with the grounding path enabled for a count backed by detections.",
+      "correct": false
+    },
+    {
+      "question": "What is the number of buildings?",
+      "gt": "104",
+      "pred": "Scene statistics unavailable (no band mapping resolved).",
+      "correct": false
+    },
+    {
+      "question": "How many small buildings are there?",
+      "gt": "100",
+      "pred": "Object counting requires the grounding agent; this scene-level answer cannot reliably count objects. Run a region-specific query with the grounding path enabled for a count backed by detections.",
+      "correct": false
+    },
+    {
+      "question": "Are there less farmlands than water areas?",
+      "gt": "no",
+      "pred": "Optical scene (band semantics unresolved; supply a band mapping for index-based description).",
+      "correct": false
+    },
+    {
+      "question": "What is the number of residential buildings next to a  farmland in the image?",
+      "gt": "98",
+      "pred": "Scene statistics unavailable (no band mapping resolved).",
+      "correct": false
+    },
+    {
+      "question": "Is the number of commercial buildings equal to the number of grass areas?",
+      "gt": "no",
+      "pred": "Optical scene (band semantics unresolved; supply a band mapping for index-based description).",
+      "correct": false
+    },
+    {
+      "question": "Is there a circular water area?",
+      "gt": "no",
+      "pred": "Optical scene (band semantics unresolved; supply a band mapping for index-based description).",
+      "correct": false
+    },
+    {
+      "question": "Are there less forests than commercial buildings?",
+      "gt": "no",
+      "pred": "Optical scene (band semantics unresolved; supply a band mapping for index-based description).",
+      "correct": false
+    },
+    {
+      "question": "Is the number of water areas equal to the number of large roads?",
+      "gt": "no",
+      "pred": "Optical scene (band semantics unresolved; supply a band mapping for index-based description).",
+      "correct": false
+    },
+    {
+      "question": "What is the amount of medium water areas?",
+      "gt": "4",
+      "pred": "Scene statistics unavailable (no band mapping resolved).",
+      "correct": false
+    }
+  ],
+  "license_note": "Unofficial mirror of RSVQA-LR \u2014 research/academic use; verify against original RSVQA Zenodo terms",
+  "run_date": "2026-09-11",
+  "caveat": "SMALL real-data smoke pass (~12 examples) \u2014 directional signal only, not a statistically powered benchmark result. See module docstring for the LEVIR-CD domain-mismatch caveat. PRD \u00a746: real data, honestly scoped."
+}

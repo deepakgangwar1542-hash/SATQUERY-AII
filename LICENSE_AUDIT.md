@@ -47,10 +47,21 @@ constraints. Retraining on LEVIR-CD/BigEarthNet inherits the DATASET terms
 |---|---|---|
 | Synthetic samples (`datasets/samples/`) | generated locally | ✓ shipped |
 | BigEarthNet v2.0 | CDLA-Permissive family — verify current version | optional download |
-| VRSBench | research-use leaning (CC-BY/research) — verify | not downloaded |
-| RSVQA | research/academic — verify | not downloaded |
-| LEVIR-CD | research/academic only — treat as NON-commercial | not downloaded |
+| VRSBench (`xiang709/VRSBench`, HF mirror) | research-use leaning (CC-BY/research) — verify before commercial use | ✓ 12-example real subset in `datasets/vrsbench/real_subset/` (gitignored), fetched 2026-09-11 for eval only |
+| RSVQA (`dmarsili/RSVQA-LR-2k`, unofficial HF mirror) | research/academic — verify against original RSVQA Zenodo terms | ✓ 12-example real subset in `datasets/rsvqa/real_subset/` (gitignored), fetched 2026-09-11 for eval only |
+| LEVIR-CD+ (`blanchon/LEVIR_CDPlus`, HF mirror) | research/academic only — treat as NON-commercial | ✓ 12-example real subset in `datasets/levir-cd/real_subset/` (gitignored), fetched 2026-09-11 for eval only. Note: official `satellite-image-deep-learning/LEVIR-CD` HF mirror has a broken/malformed dataset schema as of this date (`ValueError: Invalid string class label`) — used LEVIR-CD+ instead. |
 | Copernicus Sentinel-1/2 | free/open; ESA attribution required in outputs | n/a until real imagery used |
+
+**Eval-only usage, not shipped weights.** The three real subsets above are
+pulled by `scripts/eval/fetch_real_subsets.py` into `datasets/*/real_subset/`
+(gitignored — never committed) purely to produce honest, small, real-data
+smoke metrics via `scripts/eval/eval_real_subsets.py`
+(`scripts/eval/results/eval_{levir_cd,rsvqa,vrsbench}_real.json`). No model
+was trained or fine-tuned on these subsets, and none of this imagery/labels
+is served to end users. Before any larger pull of these datasets (full
+splits) or any training run on them, re-verify current license terms —
+LEVIR-CD/LEVIR-CD+ in particular is research/academic-only and must not back
+a commercial deployment.
 
 ## Gate checklist before any non-local deployment
 
