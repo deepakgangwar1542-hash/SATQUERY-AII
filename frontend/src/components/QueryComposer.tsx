@@ -6,8 +6,29 @@
  *
  * This is the most important component in the application.
  */
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import type { AppState } from "../services/types";
+
+// Minimal typing for the browser Web Speech API (Chromium: webkitSpeechRecognition).
+type SpeechRecognitionLike = {
+  lang: string;
+  interimResults: boolean;
+  continuous: boolean;
+  start: () => void;
+  stop: () => void;
+  onresult: ((e: any) => void) | null;
+  onerror: ((e: any) => void) | null;
+  onend: (() => void) | null;
+};
+
+function getSpeechRecognition(): (new () => SpeechRecognitionLike) | null {
+  if (typeof window === "undefined") return null;
+  return (
+    (window as any).SpeechRecognition ||
+    (window as any).webkitSpeechRecognition ||
+    null
+  );
+}
 
 export interface QuerySuggestion {
   icon: string;
@@ -61,6 +82,53 @@ export function QueryComposer({
   sceneCount,
 }: Props) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  const [listening, setListening] = useState(false);
+  const [heard, setHeard] = useState<string | null>(null);
+  const heardTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const voiceSupported = getSpeechRecognition() !== null;
+
+  // Clean up recognition + timers on unmount
+  useEffect(() => {
+    return () => {
+      recognitionRef.current?.stop();
+      if (heardTimer.current) clearTimeout(heardTimer.current);
+    };
+  }, []);
+
+  const toggleVoice = () => {
+    const Ctor = getSpeechRecognition();
+    if (!Ctor) return;
+
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+
+    const recognition = new Ctor();
+    recognition.lang = "en-US";
+    recognition.interimResults = false;
+    recognition.continuous = false;
+
+    recognition.onresult = (e: any) => {
+      const transcript = Array.from(e.results)
+        .map((r: any) => r[0]?.transcript ?? "")
+        .join(" ")
+        .trim();
+      if (!transcript) return;
+      const next = question.trim() ? `${question.trim()} ${transcript}` : transcript;
+      onChange(next);
+      setHeard(transcript);
+      if (heardTimer.current) clearTimeout(heardTimer.current);
+      heardTimer.current = setTimeout(() => setHeard(null), 4000);
+    };
+    recognition.onerror = () => setListening(false);
+    recognition.onend = () => setListening(false);
+
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  };
 
   // Auto-resize textarea
   useEffect(() => {
@@ -142,21 +210,73 @@ export function QueryComposer({
             )}
           </span>
 
-          <button
-            onClick={onAnalyze}
-            disabled={!canAnalyze}
-            title="Analyze (⌘+Enter)"
-            className={`flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-semibold transition-all shadow-lg ${
-              canAnalyze
-                ? "bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/30 active:scale-[0.98]"
-                : "bg-slate-800 text-slate-500 cursor-not-allowed"
-            }`}
-          >
-            <span>Analyze</span>
-            <span className="text-base">➤</span>
-          </button>
+          <div className="flex items-center gap-2">
+            {voiceSupported && (
+              <button
+                type="button"
+                onClick={toggleVoice}
+                aria-pressed={listening}
+                title={listening ? "Stop listening" : "Speak your query"}
+                className={`flex h-9 w-9 items-center justify-center rounded-xl border text-sm font-semibold transition-all ${
+                  listening
+                    ? "border-rose-500/60 bg-rose-500/20 text-rose-300 animate-pulse"
+                    : "border-slate-700/80 bg-slate-800/60 text-slate-300 hover:bg-slate-700/60 hover:text-white"
+                }`}
+              >
+                <span className="sr-only">
+                  {listening ? "Stop voice input" : "Start voice input"}
+                </span>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                  <line x1="12" y1="19" x2="12" y2="22" />
+                </svg>
+              </button>
+            )}
+            <button
+              onClick={onAnalyze}
+              disabled={!canAnalyze}
+              title="Analyze (⌘+Enter)"
+              className={`flex items-center gap-2 rounded-xl px-5 py-2 text-sm font-semibold transition-all shadow-lg ${
+                canAnalyze
+                  ? "bg-sky-500 hover:bg-sky-400 text-white shadow-sky-500/30 active:scale-[0.98]"
+                  : "bg-slate-800 text-slate-500 cursor-not-allowed"
+              }`}
+            >
+              <span>Analyze</span>
+              <span className="text-base">➤</span>
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Voice feedback: listening indicator + "Heard" toast */}
+      {(listening || heard) && (
+        <div className="mt-3 flex items-center gap-2 rounded-xl border border-slate-700/70 bg-slate-900/80 px-4 py-2 text-xs text-slate-300 animate-fade-in max-w-2xl w-full">
+          {listening ? (
+            <>
+              <span className="h-2 w-2 rounded-full bg-rose-400 animate-pulse" />
+              <span className="text-rose-300 font-medium">Listening…</span>
+            </>
+          ) : (
+            <>
+              <span className="h-2 w-2 rounded-full bg-emerald-400" />
+              <span className="text-slate-400">Heard:</span>
+              <span className="italic text-slate-200 truncate">"{heard}"</span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Suggestion chips — visible only in IDLE */}
       <div className="flex flex-wrap items-center justify-center gap-2 mt-5 max-w-xl">

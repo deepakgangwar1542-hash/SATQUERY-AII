@@ -75,6 +75,11 @@ def test_full_change_query_flow(client, optical_pair):
     assert 0.0 <= res["confidence"] <= 1.0
     assert res["confidence_breakdown"], "§12.4 breakdown present"
     assert res["execution_trace"], "FR-11 trace present"
+    # FR-6: the compiled EarthQuery spec is surfaced in the result so the UI
+    # can show how the natural-language query was interpreted.
+    assert res.get("earthquery_spec"), "compiled EarthQuery spec present"
+    assert res["earthquery_spec"].get("intent"), "spec carries a classified intent"
+    assert res.get("query_understanding"), "query understanding present"
     assert "change_agent" in res["agents_used"]
     feats = res["location"]["features"]
     assert feats, "change polygons rendered as features"
